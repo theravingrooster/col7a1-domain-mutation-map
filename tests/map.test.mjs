@@ -111,3 +111,42 @@ test('invalid viewports fail explicitly and requested bin counts remain bounded'
   assert.equal(buildMapBins([], fullView, 0).bins.length, 1);
   assert(buildMapBins([], fullView, NaN).bins.length <= 72);
 });
+
+test('72-bin navigation and 15-pin windows expose every mapped variation individually without coordinate loss', () => {
+  const model = buildMapBins(data.variants, fullView, 72);
+  const expected = data.variants.filter(v => v.position != null);
+  const originals = new Map(expected.map(v => [v.variationId, v]));
+  const visited = [];
+  let shortFinalWindow = false;
+  assert.equal(model.bins.length, 72);
+
+  for (const bin of model.bins) {
+    const records = getBinVariants(model, bin.index);
+    const { pages } = getDockPage(records, 0, 15);
+    for (let page = 0; page < pages; page += 1) {
+      const window = getDockPage(records, page, 15);
+      assert(window.records.length <= 15);
+      assert.equal(window.start, records.length ? page * 15 + 1 : 0);
+      assert.equal(window.end, Math.min(records.length, (page + 1) * 15));
+      for (const variant of window.records) {
+        const original = originals.get(variant.variationId);
+        assert.strictEqual(variant, original, 'Each pin refers to its own original variant record');
+        assert.deepEqual([variant.position, variant.end], [original.position, original.end]);
+        visited.push(variant);
+      }
+    }
+    const last = getDockPage(records, Number.MAX_SAFE_INTEGER, 15);
+    assert.equal(last.page, pages - 1, 'A stale page index clamps to the new final window');
+    assert.deepEqual(last.records, records.slice((pages - 1) * 15));
+    if (last.records.length > 0 && last.records.length < 15) shortFinalWindow = true;
+  }
+
+  assert(shortFinalWindow, 'Exercise a partial final pin window');
+  assert.equal(visited.length, 4268);
+  assert.equal(new Set(visited.map(v => v.variationId)).size, 4268);
+  assert.deepEqual(visited.map(v => v.variationId).sort((a, b) => a - b), expected.map(v => v.variationId).sort((a, b) => a - b));
+
+  const sameResidue = expected.filter(v => v.position === 1);
+  assert(sameResidue.length > 1, 'Use a real residue with distinct variants at the same position');
+  assert.deepEqual(visited.filter(v => v.position === 1).map(v => v.variationId).sort((a, b) => a - b), sameResidue.map(v => v.variationId).sort((a, b) => a - b));
+});
