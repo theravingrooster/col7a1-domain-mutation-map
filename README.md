@@ -1,5 +1,9 @@
 # COL7A1 domain & mutation map
 
+Live: https://col7a1-domain-mutation-map.vercel.app
+
+Repository: https://github.com/theravingrooster/col7a1-domain-mutation-map
+
 A standalone React research explorer built entirely from the local UniProt Q02388 and ClinVar files. Large interactive protein map, domain/range selection, zoom, density view, HGVS hover details, glycine highlighting, searchable filters, variant details, and CSV export of **all filtered results**.
 
 No runtime API, external fonts, analytics, or internet requests. Everything needed is inside this folder. Processing/audit code and installed dependencies were copied from the neighboring local variant explorer; no downloads were made.
@@ -49,4 +53,6 @@ Run `npm run data`, `npm run verify:data`, `npm test`, then `npm run build` afte
 
 ## Vercel
 
-Ready to deploy; **not published**. Use framework **Other**, build command **`npm run build`**, output **`dist`**, Node.js **24** (or supported 22+). Settings are in `vercel.json`; no environment variables are needed. Commit source files, both package files, `Q02388.json`, and `public/data/`. Builds consume processed data and do not need Python or the large ClinVar archive, which is excluded from Git/Vercel uploads.
+Deployed to the **Elenchus** Vercel team from GitHub `main`. Use framework **Other**, build command **`npm run build`**, output **`dist`**, Node.js **24** (or supported 22+). Settings are in `vercel.json`; no environment variables are needed. Commit source files, both package files, `Q02388.json`, and `public/data/`. Builds consume processed data and do not need Python or the large ClinVar archive, which is excluded from Git/Vercel uploads.
+
+The repository is connected to Vercel; updates to `main` trigger a production build. The initial upload used the connected GitHub app. Terminal pushes require GitHub CLI/Git authentication on the machine. The original data acquisition and app build used only local files; GitHub publication and Vercel deployment used the connected services.
