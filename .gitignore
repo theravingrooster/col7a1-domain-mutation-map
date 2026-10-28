@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vercel/
+.verification/
+__pycache__/
+*.pyc
+variant_summary.txt.gz
+.DS_Store
+.npm-cache/

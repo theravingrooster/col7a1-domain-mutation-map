@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.verification/
+variant_summary.txt.gz
+.git/
+__pycache__/
+**/__pycache__/
+.npm-cache/
