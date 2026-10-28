@@ -54,6 +54,8 @@ All boundaries and 12 subdomains (two vWA, nine fibronectin III, one BPTI/Kunitz
 
 Markers group variants sharing an anchor and classification. Density counts each variant once at its anchor (clamped to the viewport for overlapping intervals). Height is `8 + 8√count`, capped at 39 SVG units. Clinical colors preserve the source classifications, with “likely” grouped into red/green and conflicts separate. Domains are keyboard selectable; the table provides access to every variant. Map/table scroll horizontally on small screens. See **Sources & methods** in the app for details.
 
+The five-lane map batches marker shapes into vector paths and uses an indexed pointer lookup. Pointer updates run at most once per animation frame, and the map artwork stays unchanged while the tooltip updates. Arrow keys explore markers, up/down change lanes, and Enter selects. Hover cards render outside the map's scroll container and fit within the viewport. Figure exports retain the plotted vector shapes.
+
 ## Data and regeneration
 
 - `public/data/domain-map.json`: compact frontend JSON (~3.6 MB), with metadata, sequence, domains, variants, positions, and glycine flags. Unmapped coordinates are `null`.

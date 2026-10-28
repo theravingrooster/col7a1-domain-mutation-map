@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import ProteinMap from './ProteinMap.jsx';
 import { GROUPS, filterVariants, sortVariants, format, makeCSV } from './data-utils.mjs';
@@ -76,7 +76,7 @@ function App(){
   useEffect(()=>{if(!data)return;try{localStorage.setItem(PIN_STORAGE,JSON.stringify(pinnedIds));}catch{}},[pinnedIds,data]);
   useEffect(()=>{setShareLink('');setWorkspaceMessage('');},[filters,selection,view,sort,mapMode,pinnedIds]);
   const update = patch => {setFilters(f=>({...f,...patch}));setPage(1);setExportMessage('');};
-  const setSelection = s => {setSelectionState(s);setFrom(s?String(s.start):'');setTo(s?String(s.end):'');setRangeError('');setPage(1);setExportMessage('');if(s&&filters.mapping==='unmapped')setFilters(f=>({...f,mapping:'all'}));};
+  const setSelection = useCallback(s => {setSelectionState(s);setFrom(s?String(s.start):'');setTo(s?String(s.end):'');setRangeError('');setPage(1);setExportMessage('');if(s)setFilters(f=>f.mapping==='unmapped'?{...f,mapping:'all'}:f);},[]);
   const filtered = useMemo(()=>data ? filterVariants(data.variants,filters) : [],[data,filters]);
   const results = useMemo(()=>sortVariants(selection?filtered.filter(v=>v.position!=null&&v.position<=selection.end&&v.end>=selection.start):filtered,sort),[filtered,selection,sort]);
   const types=useMemo(()=>data?[...new Set(data.variants.flatMap(v=>v.types))].sort():[],[data]);
