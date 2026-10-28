@@ -4,7 +4,10 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import "./build.mjs";
 const root = fileURLToPath(new URL("../dist/", import.meta.url));
-const port = Number(process.env.PORT || 3001);
+const args = process.argv.slice(2);
+const option = name => args.includes(name) ? args[args.indexOf(name) + 1] : undefined;
+const port = Number(option('--port') || process.env.PORT || 3001);
+const host = option('--host') || '127.0.0.1';
 const mime = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -47,6 +50,6 @@ const server = http.createServer(async (req, res) => {
     res.end("Not found");
   }
 });
-server.listen(port, "127.0.0.1", () =>
+server.listen(port, host, () =>
   console.log(`Local: http://127.0.0.1:${port}`),
 );

@@ -15,11 +15,23 @@ Node.js 22+; Python 3.9+ only for data processing and audits.
 ```sh
 npm run dev          # http://127.0.0.1:3001
 npm run build        # static site in dist/
-npm test             # 20 automated tests
+npm test             # processing, filter, mapping, and research-workflow tests
 npm run verify:data  # full comparison against the local source archive
 ```
 
 The server builds at startup; after edits, rebuild and refresh. On another machine, run `npm ci` first (requires cached packages or network access). `dist/` can also be served using `python3 -m http.server 3001 --directory dist`.
+
+## Research workspace
+
+- **Light / dark / system theme**: persistent preference with CSP-compatible initialization before paint; includes the protein map, tables, and dialogs.
+- **Review evidence**: minimum ClinVar stars and exact source review-status filters. Missing status stays unknown; stars describe review support, not pathogenicity. The snapshot has 928 two-star records and no three-/four-star records. Definitions: https://www.ncbi.nlm.nih.gov/clinvar/docs/review_status/.
+- **Comparison**: pin up to four records across filters/pages; compare classification, domains, coordinates, review evidence, condition text, evaluation dates, and mapping extent. The shortlist is saved locally and included in shared links. Export the comparison as CSV.
+- **Reference sequence context**: numbered Q02388 residues with ten flanking amino acids, reported positions highlighted, and FASTA copy/download. Long intervals are abbreviated visually but exported in full. Frameshifts show the reported reference anchor, with no predicted mutant sequence.
+- **Reproducible views**: Copy view link preserves filters, selected interval, map zoom/mode, sort, and comparison. Export session JSON saves those settings plus all result IDs, coordinate conventions, reference versions, source hashes, and export time. Opening a shared link restores it; a plain visit restores the local shortlist.
+- **Figure export**: Export SVG saves the visible map with the current theme, view coordinates, snapshot date, mapped count, and interpretation notes. Export a session alongside a figure to preserve the complete filter recipe.
+- **Evidence access**: exact `VCV000017423` or `id:17423` searches; links to live ClinVar records and UniProt. Live records may differ from the fixed local snapshot.
+
+All analysis and exports run in the browser. Source biomedical files were not regenerated for these interface additions. Full archive verification requires the original `variant_summary.txt.gz`, which is not committed; the build validates the committed extracted ClinVar rows and UniProt hashes, dataset counts, domains, and provenance.
 
 ## Snapshot and mapping
 

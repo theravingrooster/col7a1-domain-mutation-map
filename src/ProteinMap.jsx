@@ -6,8 +6,7 @@ const familyColor = d => d.label.includes('VWFA') ? '#7a9cba' : d.label.includes
 const regionColor = d => d.label === 'NC1' ? '#dce9e3' : d.label === 'NC2' ? '#e7e2ef' : '#dce9ec';
 const shortDomain = d => d.label.replace('Fibronectin type-III ', 'FN').replace('VWFA ', 'vWA ').replace('BPTI/Kunitz inhibitor', 'K');
 
-export default function ProteinMap({ data, variants, selection, setSelection, view, setView, onInspect }) {
-  const [mode, setMode] = useState('variants');
+export default function ProteinMap({ data, variants, selection, setSelection, view, setView, onInspect, mode, setMode }) {
   const [hover, setHover] = useState(null);
   const { markers, binSize } = useMemo(() => groupMarkers(variants, view, mode), [variants, view, mode]);
   const length = view.end - view.start + 1;
@@ -35,13 +34,25 @@ export default function ProteinMap({ data, variants, selection, setSelection, vi
     if (m.variants.length === 1 && mode === 'variants') onInspect(m.variants[0]);
     setHover(null);
   };
+  const exportSVG = () => {
+    const source=document.querySelector('.protein-svg');if(!source)return;
+    const clone=source.cloneNode(true), originals=[source,...source.querySelectorAll('*')], copies=[clone,...clone.querySelectorAll('*')];
+    originals.forEach((node,i)=>{const style=getComputedStyle(node);for(const prop of ['fill','stroke','stroke-width','stroke-dasharray','opacity','font-family','font-size','font-weight','text-anchor'])copies[i].style.setProperty(prop,style.getPropertyValue(prop));copies[i].removeAttribute('tabindex');copies[i].removeAttribute('role');});
+    const ns='http://www.w3.org/2000/svg', outer=document.createElementNS(ns,'svg');outer.setAttribute('xmlns',ns);outer.setAttribute('viewBox',`0 0 ${W} 500`);outer.setAttribute('width',String(W));outer.setAttribute('height','500');
+    const bg=document.createElementNS(ns,'rect');bg.setAttribute('width','100%');bg.setAttribute('height','100%');bg.setAttribute('fill',getComputedStyle(document.documentElement).getPropertyValue('--surface').trim()||'#fff');outer.append(bg);
+    const label=(text,y,size)=>{const el=document.createElementNS(ns,'text');el.setAttribute('x','18');el.setAttribute('y',String(y));el.setAttribute('fill',getComputedStyle(document.documentElement).getPropertyValue('--ink').trim());el.setAttribute('font-family','Arial, sans-serif');el.setAttribute('font-size',String(size));el.textContent=text;outer.append(el);};
+    label(`COL7A1 · Q02388 · ${view.start}–${view.end} aa · ${mode}`,26,18);clone.setAttribute('y','36');clone.setAttribute('width',String(W));clone.setAttribute('height','418');outer.append(clone);
+    label(`Prepared ${data.snapshot.preparedDate} · ${markers.reduce((n,m)=>n+m.variants.length,0)} mapped variants in view · height = √count · 1-based precursor`,472,12);
+    label('Source-reported classifications · ClinVar release date not recorded · export session JSON for filters and source hashes',490,11);
+    const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(outer)],{type:'image/svg+xml;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`COL7A1-map-${view.start}-${view.end}.svg`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
   return <section className="map-panel" aria-labelledby="map-heading">
     <div className="panel-heading">
       <div><div className="eyebrow"><span className="live-dot"/> PROTEIN EXPLORER</div><h2 id="map-heading">A sequence-level view</h2></div>
       <div className="map-tools"><div className="segmented" aria-label="Map display">
         <button aria-pressed={mode === 'variants'} onClick={() => { setMode('variants'); setHover(null); }}>Variants</button>
         <button aria-pressed={mode === 'density'} onClick={() => { setMode('density'); setHover(null); }}>Density</button>
-      </div><button className="button small" disabled={!selection} onClick={() => {setView({start: selection.start, end: selection.end}); setHover(null);}}>Zoom to selection <span>↗</span></button>
+      </div><button className="button small" onClick={exportSVG}>Export SVG ↓</button><button className="button small" disabled={!selection} onClick={() => {setView({start: selection.start, end: selection.end}); setHover(null);}}>Zoom to selection <span>↗</span></button>
       {!full && <button className="text-button" onClick={() => {setView({start:1,end:data.protein.length});setHover(null);}}>Full protein ↺</button>}</div>
     </div>
     <div className="map-context"><span><strong>{format(markers.reduce((count, marker) => count + marker.variants.length, 0))}</strong> mapped variants in view <span className="muted">· selection highlighted below</span></span><span className="mono">{format(view.start)}—{format(view.end)} aa</span></div>
@@ -54,7 +65,7 @@ export default function ProteinMap({ data, variants, selection, setSelection, vi
         <g clipPath="url(#plot-clip)">{markers.map(m => {
           const group = GROUPS.find(g => g.id === m.group), lane = GROUPS.indexOf(group), base = 64+lane*48;
           const h = Math.min(39, 8+Math.sqrt(m.variants.length)*8), cx = x(m.start), cy = base-h;
-          const tooltip = { title: mode==='density' ? `${format(m.start)}–${format(m.end)} aa · ${m.variants.length} variants` : `${m.variants[0].proteinHgvs[0] || 'Protein variant'}${m.variants.length>1 ? ` + ${m.variants.length-1} more` : ''}`, detail: mode==='density' ? `${group.label} · e.g. ${m.variants[0].proteinHgvs[0]}` : m.variants[0].clinicalSignificance.join(' / ') || 'Not provided', foot: `Position ${format(m.start)}${m.end!==m.start?'–'+format(m.end):''} aa${m.glycine?' · Gly substitution':''}`, action: 'Click to explore variants' };
+          const tooltip = { title: mode==='density' ? `${format(m.start)}–${format(m.end)} aa · ${m.variants.length} variants` : `${m.variants[0].proteinHgvs[0] || 'Protein variant'}${m.variants.length>1 ? ` + ${m.variants.length-1} more` : ''}`, detail: mode==='density' ? `${group.label} · e.g. ${m.variants[0].proteinHgvs[0]}` : m.variants[0].clinicalSignificance.join(' / ') || 'Not provided', foot: `Position ${format(m.start)}${m.end!==m.start?'–'+format(m.end):''} aa${m.glycine?(m.variants.length>1?' · group contains Gly substitutions':' · Gly substitution'):''}`, action: 'Click to explore variants' };
           return <g key={m.key} className="marker" role="button" tabIndex={markers.length<=250?0:-1} aria-label={`${tooltip.title}; ${tooltip.detail}; ${tooltip.foot}`} onMouseEnter={e=>showTip(e,tooltip)} onFocus={e=>showTip(e,tooltip)} onBlur={()=>setHover(null)} onKeyDown={e=>activate(e,()=>chooseMarker(m))} onClick={()=>chooseMarker(m)}>
             <title>{tooltip.title} · {tooltip.detail} · {tooltip.foot}</title>
             {mode==='density' ? <rect x={cx} y={cy} width={Math.max(1,width(m.start,m.end)-1.6)} height={h} rx="1.5" fill={group.color} opacity=".8"/> : <><line x1={cx} x2={cx} y1={base} y2={cy} stroke={group.color} opacity=".43" strokeWidth="1"/>{m.end>m.start && <line x1={cx} x2={x(m.end)} y1={cy} y2={cy} stroke={group.color} strokeWidth="3"/>}<circle cx={cx} cy={cy} r="2.4" fill={group.color}/><circle cx={cx} cy={cy} r="5" fill="transparent"/></>}
