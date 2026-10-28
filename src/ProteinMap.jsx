@@ -1,6 +1,6 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useMemo, useRef } from 'react';
 import { GROUPS, format } from './data-utils.mjs';
-import { buildMapBins, binIndexAtRatio, getBinVariants } from './map-utils.mjs';
+import { buildMapBins, binIndexAtRatio } from './map-utils.mjs';
 import './protein-map.css';
 import VariantPins from './VariantPins.jsx';
 
@@ -27,14 +27,15 @@ function axisTicks(view) {
 
 // Hover never re-renders this artwork. Each lane is one path, regardless of
 // whether the underlying snapshot contains dozens or thousands of records.
-const OverviewArt = memo(function OverviewArt({ model, domains, selection, onSelectDomain, compact = false, clipId = "overview-plot-clip" }) {
+const OverviewArt = memo(function OverviewArt({ model, domains, selection, onSelectDomain, compact = false, showAxis = true, clipId = "overview-plot-clip" }) {
   const { view, bins } = model;
   const length = view.end - view.start + 1;
   const x = p => LEFT + (p - view.start) / length * TRACK;
   const width = (start, end) => (end - start + 1) / length * TRACK;
   const visibleDomains = domains.filter(d => d.end >= view.start && d.start <= view.end);
   const maxCount = Math.max(1, model.maxCount);
-  const regionY = compact ? 50 : 233, domainY = compact ? 93 : 276;
+  const regionY = compact ? (showAxis ? 50 : 16) : 233, domainY = compact ? (showAxis ? 93 : 59) : 276;
+  const centerX = p => LEFT + (p - view.start + 0.5) / length * TRACK;
   const paths = GROUPS.map((group, lane) => bins.map(bin => {
     const count = bin.counts[group.id];
     if (!count) return '';
@@ -46,12 +47,12 @@ const OverviewArt = memo(function OverviewArt({ model, domains, selection, onSel
   }).join(''));
   return <g className="overview-art">
     <defs><clipPath id={clipId}><rect x={LEFT} y="0" width={TRACK} height={H}/></clipPath></defs>
-    {axisTicks(view).map(t => <g key={t}>
-      {!compact && <line x1={x(t)} x2={x(t)} y1={TOP} y2={TOP + CHART_HEIGHT} className="overview-grid"/>}
-      <text x={x(t)} y={compact ? 28 : 210} textAnchor={t === view.start ? 'start' : t === view.end ? 'end' : 'middle'} className="axis-text">{format(t)}</text>
+    {showAxis && axisTicks(view).map(t => <g key={t}>
+      {!compact && <line x1={centerX(t)} x2={centerX(t)} y1={TOP} y2={TOP + CHART_HEIGHT} className="overview-grid"/>}
+      <text x={centerX(t)} y={compact ? 28 : 210} textAnchor={t === view.start ? 'start' : t === view.end ? 'end' : 'middle'} className="axis-text">{format(t)}</text>
     </g>)}
     {selection && <g clipPath={`url(#${clipId})`} pointerEvents="none">
-      <rect x={x(selection.start)} y={compact ? 39 : TOP} width={Math.max(width(selection.start, selection.end), 2)} height={compact ? 85 : CHART_HEIGHT} className="overview-selection"/>
+      <rect x={x(selection.start)} y={compact ? regionY - 11 : TOP} width={Math.max(width(selection.start, selection.end), 2)} height={compact ? 85 : CHART_HEIGHT} className="overview-selection"/>
     </g>}
     {!compact && GROUPS.map((group, lane) => <g key={group.id}>
       <circle cx="12" cy={TOP + lane * LANE + 15} r="3.5" fill={group.color}/>
@@ -66,13 +67,13 @@ const OverviewArt = memo(function OverviewArt({ model, domains, selection, onSel
       {visibleDomains.filter(d => d.level !== 'subdomain').map(d => <g key={d.id} role="button" tabIndex="0" className="domain" aria-label={`Select ${d.label}, residues ${d.start} to ${d.end}`} onClick={() => onSelectDomain(d)} onKeyDown={e => activate(e, () => onSelectDomain(d))}>
         <title>{`${d.label} · ${d.start}–${d.end} aa · click to select`}</title>
         <rect x={x(d.start)} y={regionY} width={width(d.start, d.end)} height="28" rx="5" fill={regionColor(d)} stroke={selection?.id === d.id ? '#266e60' : '#b9cbca'} strokeWidth={selection?.id === d.id ? 2 : 1}/>
-        {width(Math.max(d.start, view.start), Math.min(d.end, view.end)) > 45 && <text x={x((Math.max(d.start, view.start) + Math.min(d.end, view.end)) / 2)} y={regionY + 18} textAnchor="middle" className="domain-text">{d.label === 'Collagenous' && width(d.start, d.end) > 280 ? 'Collagenous · triple-helical region' : d.label}</text>}
+        {width(Math.max(d.start, view.start), Math.min(d.end, view.end)) > 45 && <text x={centerX((Math.max(d.start, view.start) + Math.min(d.end, view.end)) / 2)} y={regionY + 18} textAnchor="middle" className="domain-text">{d.label === 'Collagenous' && width(d.start, d.end) > 280 ? 'Collagenous · triple-helical region' : d.label}</text>}
       </g>)}
       <line x1={LEFT} x2={W - RIGHT} y1={domainY + 13} y2={domainY + 13} className="overview-domain-line"/>
       {visibleDomains.filter(d => d.level === 'subdomain').map(d => <g key={d.id} role="button" tabIndex="0" className="domain" aria-label={`Select ${d.label}, residues ${d.start} to ${d.end}`} onClick={() => onSelectDomain(d)} onKeyDown={e => activate(e, () => onSelectDomain(d))}>
         <title>{`${d.label} · ${d.start}–${d.end} aa · click to select`}</title>
         <rect x={x(d.start)} y={domainY} width={width(d.start, d.end)} height="26" rx="4" fill={familyColor(d)} stroke={selection?.id === d.id ? '#205f52' : '#fff'} strokeWidth={selection?.id === d.id ? 2 : 1}/>
-        {width(Math.max(d.start, view.start), Math.min(d.end, view.end)) > 17 && <text x={x((Math.max(d.start, view.start) + Math.min(d.end, view.end)) / 2)} y={domainY + 18} textAnchor="middle" className="subdomain-text">{shortDomain(d)}</text>}
+        {width(Math.max(d.start, view.start), Math.min(d.end, view.end)) > 17 && <text x={centerX((Math.max(d.start, view.start) + Math.min(d.end, view.end)) / 2)} y={domainY + 18} textAnchor="middle" className="subdomain-text">{shortDomain(d)}</text>}
       </g>)}
     </g>
   </g>;
@@ -106,67 +107,36 @@ function exportMap(source, data, model) {
 
 function ProteinMap({ data, variants, selection, setSelection, view, setView, onInspect, mode, setMode }) {
   const model = useMemo(() => buildMapBins(variants, view, 72), [variants, view.start, view.end]);
-  const [focus, setFocus] = useState({ index: 0, group: 'all' });
+  const records = useMemo(() => model.bins.flatMap(bin => bin.variants), [model]);
   const svgRef = useRef(null), exportRef = useRef(null);
-  const activeIndex = Math.min(focus.index, model.bins.length - 1);
-  const bin = model.bins[activeIndex];
-  const records = useMemo(() => getBinVariants(model, activeIndex, focus.group), [model, activeIndex, focus.group]);
   const full = view.start === 1 && view.end === data.protein.length;
   const compact = mode === 'variants';
-  const chooseDomain = useCallback(d => {
-    setSelection({ start: d.start, end: d.end, label: d.label, id: d.id });
-    const midpoint = (Math.max(d.start, model.view.start) + Math.min(d.end, model.view.end)) / 2;
-    setFocus({ index: binIndexAtRatio((midpoint - model.view.start) / (model.view.end - model.view.start + 1), model), group: 'all' });
-  }, [setSelection, model]);
-  useEffect(() => {
-    const middle = Math.floor(model.bins.length / 2);
-    const initial = model.bins.reduce((best, item) => item.total && Math.abs(item.index - middle) < Math.abs(best - middle) ? item.index : best, model.bins.find(item => item.total)?.index ?? middle);
-    setFocus({ index: initial, group: 'all' });
-  }, [model]);
-  const chooseFocus = (index, group = focus.group) => setFocus({ index, group });
+  const chooseDomain = useCallback(d => setSelection({ start: d.start, end: d.end, label: d.label, id: d.id }), [setSelection]);
   const chooseDensityWindow = event => {
     const bounds = svgRef.current.getBoundingClientRect();
     const px = (event.clientX - bounds.left) / bounds.width * W;
-    const py = (event.clientY - bounds.top) / bounds.height * H;
-    chooseFocus(binIndexAtRatio((px - LEFT) / TRACK, model), GROUPS[Math.max(0, Math.min(GROUPS.length - 1, Math.floor((py - TOP) / LANE)))].id);
+    const bin = model.bins[binIndexAtRatio((px - LEFT) / TRACK, model)];
+    setView({ start: bin.start, end: bin.end });
     setMode('variants');
   };
+  const domainContext = <div className="lollipop-domain-context"><svg className="protein-svg overview-svg" viewBox={`0 0 ${W} 100`} aria-label="COL7A1 protein regions and subdomains. Select a domain to filter its variants."><OverviewArt model={model} domains={data.domains} selection={selection} onSelectDomain={chooseDomain} compact showAxis={false}/></svg></div>;
   return <section className="map-panel protein-map-v2 protein-map-pins" aria-labelledby="map-heading">
     <div className="panel-heading">
-      <div><div className="eyebrow"><span className="live-dot"/> PROTEIN EXPLORER</div><h2 id="map-heading">Hover a pin. Explore a variant.</h2></div>
+      <div><div className="eyebrow"><span className="live-dot"/> PROTEIN EXPLORER</div><h2 id="map-heading">Lollipop mutation map</h2></div>
       <div className="map-tools">
-        <div className="segmented" aria-label="Map display">
-          <button aria-pressed={compact} onClick={() => setMode('variants')}>Variant pins</button>
-          <button aria-pressed={!compact} onClick={() => setMode('density')}>Density overview</button>
-        </div>
+        <div className="segmented" aria-label="Map display"><button aria-pressed={compact} onClick={() => setMode('variants')}>Lollipop diagram</button><button aria-pressed={!compact} onClick={() => setMode('density')}>Density overview</button></div>
         <button className="button small" onClick={() => exportMap(exportRef.current, data, model)}>Export density SVG ↓</button>
         <button className="button small" disabled={!selection} onClick={() => setView({ start: selection.start, end: selection.end })}>Zoom to selection ↗</button>
         {!full && <button className="text-button" onClick={() => setView({ start: 1, end: data.protein.length })}>Full protein ↺</button>}
       </div>
     </div>
-    <div className="map-context"><span><strong>{format(model.mappedCount)}</strong> mapped variants <span className="muted">· {compact ? 'Choose a region, then hover its individual pins below.' : `${model.binSize}-residue bins · shared √count scale`}</span></span><span className="mono">{format(view.start)}—{format(view.end)} aa</span></div>
-    {!compact && <div className="overview-help">Click a density track to open the individual variants in that window.</div>}
-    <div className="overview-viewport">
-      <svg ref={svgRef} className="protein-svg overview-svg" viewBox={`0 0 ${W} ${compact ? 135 : H}`} aria-label={compact ? 'COL7A1 protein regions and subdomains. Select a domain to explore its variants.' : 'COL7A1 variant density by protein position and classification.'}>
-        <OverviewArt model={model} domains={data.domains} selection={selection} onSelectDomain={chooseDomain} compact={compact}/>
-        {!compact && <rect x={LEFT} y={TOP} width={TRACK} height={CHART_HEIGHT} fill="transparent" className="overview-hit-area" onClick={chooseDensityWindow} data-export-ignore="true"/>}
-      </svg>
-    </div>
+    <div className="map-context"><span><strong>{format(model.mappedCount)}</strong> mapped variants <span className="muted">· {compact ? 'One pin per variant at its reported protein position.' : `${model.binSize}-residue bins · shared √count scale`}</span></span><span className="mono">{format(view.start)}—{format(view.end)} aa</span></div>
+    {compact ? <VariantPins records={records} view={view} onInspect={onInspect} onSelectRange={setSelection} domainContext={domainContext}/> : <>
+      <div className="overview-help">Click a density track to zoom into its individual variant pins.</div>
+      <div className="overview-viewport"><svg ref={svgRef} className="protein-svg overview-svg" viewBox={`0 0 ${W} ${H}`} aria-label="COL7A1 variant density by protein position and classification."><OverviewArt model={model} domains={data.domains} selection={selection} onSelectDomain={chooseDomain}/><rect x={LEFT} y={TOP} width={TRACK} height={CHART_HEIGHT} fill="transparent" className="overview-hit-area" onClick={chooseDensityWindow} data-export-ignore="true"/></svg></div>
+    </>}
     <div hidden aria-hidden="true"><svg ref={exportRef} className="protein-svg overview-svg" viewBox={`0 0 ${W} ${H}`}><OverviewArt model={model} domains={data.domains} selection={selection} onSelectDomain={chooseDomain} clipId="export-plot-clip"/></svg></div>
-    {compact && bin && <div className="pin-workspace">
-      <div className="dock-heading">
-        <div><div className="eyebrow">START-POSITION WINDOW</div><h3>{format(bin.start)}–{format(bin.end)} <small>aa</small> <span className="dock-record-count">{format(records.length)} {records.length === 1 ? 'variant' : 'variants'}</span></h3></div>
-        <div className="dock-navigation"><select aria-label="Pin classification" value={focus.group} onChange={event => chooseFocus(activeIndex, event.target.value)}><option value="all">All classifications</option>{GROUPS.map(g => <option key={g.id} value={g.id}>{g.short}</option>)}</select><button className="button small" title="Filters the table by interval overlap, so spans anchored in other windows can also match." onClick={() => setSelection({ start: bin.start, end: bin.end, label: `Residues ${format(bin.start)}–${format(bin.end)}` })}>Filter this window ↗</button></div>
-      </div>
-      <div className="dock-scrubber">
-        <button className="button small" aria-label="Previous protein window" disabled={activeIndex === 0} onClick={() => chooseFocus(activeIndex - 1)}>←</button>
-        <input type="range" min="0" max={model.bins.length - 1} value={activeIndex} aria-label="Explore protein position" aria-valuetext={`${bin.start} to ${bin.end} amino acids`} onChange={event => chooseFocus(Number(event.target.value))}/>
-        <button className="button small" aria-label="Next protein window" disabled={activeIndex === model.bins.length - 1} onClick={() => chooseFocus(activeIndex + 1)}>→</button>
-        <span>{format(bin.start)}–{format(bin.end)} aa</span>
-      </div>
-      <VariantPins records={records} onInspect={onInspect} onSelectRange={setSelection}/>
-    </div>}
-    <div className="map-footer"><span>{compact ? 'Pins use reported start positions; spacing is expanded. Overlapping spans starting outside the viewport appear at its edge.' : 'One count per mapped record at its reported anchor; overlapping spans are clamped to the view edge.'}</span><span><span className="diamond">◇</span> Collagenous glycine substitution</span></div>
+    <div className="map-footer"><span>{compact ? 'Hover temporarily expands crowded pins. Pin height reflects magnification, not patient frequency. Reported coordinates remain unchanged.' : 'One count per mapped record at its reported anchor; overlapping spans are clamped to the view edge.'}</span><span><span className="diamond">◇</span> Collagenous glycine substitution</span></div>
   </section>;
 }
 

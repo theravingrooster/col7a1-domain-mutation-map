@@ -1,28 +1,18 @@
-.variant-pin-explorer { margin-top:12px; }
-.variant-pin-explorer .variant-pin-instructions { display:flex; align-items:center; justify-content:space-between; gap:20px; min-height:48px; }
+.variant-pin-explorer { margin-top:0; padding-bottom:18px; }
+.variant-pin-explorer .variant-pin-instructions { display:flex; align-items:center; justify-content:space-between; gap:20px; min-height:58px; padding:0 26px 8px; }
 .variant-pin-explorer .variant-pin-instructions p { color:var(--muted); font-size:11px; line-height:1.7; }
 .variant-pin-explorer .variant-pin-instructions p span { display:block; }
-.variant-pin-explorer .variant-pin-hold { min-width:150px; display:flex; align-items:center; justify-content:flex-end; min-height:36px; color:var(--muted); font-size:10px; }
-.variant-pin-explorer .variant-pin-scroll { overflow-x:auto; overscroll-behavior-x:contain; padding:0 8px; margin:0 -8px; }
-.variant-pin-explorer .variant-pin-row { position:relative; display:grid; grid-template-columns:repeat(var(--pin-slots),minmax(44px,1fr)); min-width:calc(var(--pin-slots) * 44px); height:190px; isolation:isolate; }
-.variant-pin-explorer .variant-pin-baseline { position:absolute; top:155px; left:0; right:0; height:1px; background:var(--line); pointer-events:none; }
-.variant-pin-explorer .variant-pin { position:relative; display:block; height:190px; width:100%; min-width:44px; margin:0; padding:0; border:0; border-radius:8px; background:transparent; color:var(--muted); cursor:pointer; touch-action:manipulation; }
-.variant-pin-explorer .variant-pin:active { transform:none; }
-.variant-pin-explorer .variant-pin:focus-visible { outline:2px solid var(--focus); outline-offset:-3px; }
-.variant-pin-explorer .variant-pin-stem { position:absolute; top:95px; left:calc(50% - 1px); width:2px; height:60px; background:var(--variant-color); opacity:.72; transform-origin:center bottom; transform:scaleY(1); transition:transform 160ms ease-out; pointer-events:none; }
-.variant-pin-explorer .variant-pin-head { position:absolute; top:89px; left:calc(50% - 6px); width:12px; height:12px; border-radius:50%; background:var(--variant-color); box-shadow:0 0 0 2px var(--surface-soft); transform:translateY(0) scale(1); transition:transform 160ms ease-out; pointer-events:none; }
-.variant-pin-explorer .variant-pin-foot { position:absolute; top:153px; left:calc(50% - 2px); width:4px; height:4px; border-radius:50%; background:var(--variant-color); pointer-events:none; }
-.variant-pin-explorer .variant-pin-position { position:absolute; top:169px; left:0; width:100%; font-size:9px; color:var(--muted); text-align:center; pointer-events:none; }
-.variant-pin-explorer .variant-pin-gly-mark { position:absolute; top:137px; left:calc(50% + 6px); font-size:12px; line-height:1; color:var(--purple); pointer-events:none; }
-.variant-pin-explorer .variant-pin.is-active .variant-pin-stem { transform:scaleY(2); }
-.variant-pin-explorer .variant-pin.is-active .variant-pin-head { transform:translateY(-60px) scale(2.15); }
-.variant-pin-explorer .variant-pin.is-neighbor .variant-pin-stem { transform:scaleY(1.47); }
-.variant-pin-explorer .variant-pin.is-neighbor .variant-pin-head { transform:translateY(-28px) scale(1.45); }
-.variant-pin-explorer .variant-pin.is-next-neighbor .variant-pin-stem { transform:scaleY(1.2); }
-.variant-pin-explorer .variant-pin.is-next-neighbor .variant-pin-head { transform:translateY(-12px) scale(1.15); }
-.variant-pin-explorer .variant-pin.is-active .variant-pin-position { color:var(--ink); font-weight:700; }
-.variant-pin-explorer .variant-pin.is-selected .variant-pin-head { box-shadow:0 0 0 2px var(--surface-soft),0 0 0 3px var(--variant-color); }
-.variant-pin-explorer .variant-pin-detail { display:grid; grid-template-columns:minmax(0,1fr) 190px; gap:24px; height:192px; padding:17px 20px; border:1px solid var(--line); border-left:3px solid var(--variant-color); border-radius:8px; background:var(--surface); }
+.variant-pin-explorer .variant-pin-hold { min-width:135px; display:flex; align-items:center; justify-content:flex-end; min-height:36px; color:var(--muted); font-size:10px; }
+.variant-pin-explorer .variant-pin-scroll { overflow-x:auto; overscroll-behavior-x:contain; margin:0 18px; }
+.variant-pin-explorer .variant-pin-stage { min-width:720px; }
+.variant-pin-explorer .variant-pin-canvas { display:block; width:100%; height:205px; background:var(--surface); cursor:crosshair; touch-action:manipulation; }
+.variant-pin-explorer .variant-pin-canvas:focus-visible { outline:2px solid var(--focus); outline-offset:-3px; }
+.variant-pin-explorer .variant-pin-stage>svg { display:block; width:100%; min-width:0; height:auto; }
+.variant-pin-explorer .variant-pin-navigation { display:flex; align-items:center; gap:12px; margin:12px 26px 16px; }
+.variant-pin-explorer .variant-pin-navigation input { min-width:30px; width:100%; height:28px; margin:0; accent-color:var(--green); cursor:ew-resize; }
+.variant-pin-explorer .variant-pin-navigation .button { flex-shrink:0; min-width:36px; min-height:36px; }
+.variant-pin-explorer .variant-pin-navigation>span { min-width:84px; text-align:right; color:var(--muted); font-size:11px; white-space:nowrap; }
+.variant-pin-explorer .variant-pin-detail { display:grid; grid-template-columns:minmax(0,1fr) 190px; gap:24px; height:192px; margin:0 26px; padding:17px 20px; border:1px solid var(--line); border-left:3px solid var(--variant-color); border-radius:8px; background:var(--surface); }
 .variant-pin-explorer .variant-pin-detail-main { min-width:0; }
 .variant-pin-explorer .variant-pin-detail-kicker { display:flex; align-items:center; gap:14px; height:18px; color:var(--muted); font-size:9px; letter-spacing:1px; }
 .variant-pin-explorer .variant-pin-detail-kicker .mono { font-size:10px; letter-spacing:0; }
@@ -38,24 +28,23 @@
 .variant-pin-explorer .variant-pin-detail-actions .evidence-badge { min-height:29px; margin:0; align-self:center; }
 .variant-pin-explorer .variant-pin-detail-actions .button { min-height:40px; }
 .variant-pin-explorer .variant-pin-open { background:var(--success-bg); color:var(--green); border-color:var(--line); }
-.variant-pin-explorer .variant-pin-pagination { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:68px; padding-top:10px; color:var(--muted); font-size:11px; }
-.variant-pin-explorer .variant-pin-pagination small { display:block; font-size:10px; margin-top:4px; }
-.variant-pin-explorer .variant-pin-pagination>div { display:flex; align-items:center; gap:10px; white-space:nowrap; }
-.variant-pin-explorer .variant-pin-pagination .button { min-height:36px; }
-.variant-pin-explorer .variant-pin-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:9px; min-height:382px; text-align:center; color:var(--muted); font-size:12px; }
-.variant-pin-explorer .variant-pin-empty strong { color:var(--ink); font-size:14px; }
+.variant-pin-explorer .variant-pin-detail.is-empty { display:flex; align-items:center; justify-content:center; }
+.variant-pin-explorer .variant-pin-empty { max-width:650px; text-align:center; color:var(--muted); font-size:12px; line-height:1.7; }
+.variant-pin-explorer .variant-pin-empty strong { display:block; margin-bottom:6px; color:var(--ink); font-size:14px; font-weight:550; }
 @media (max-width:760px) {
-  .variant-pin-explorer .variant-pin-instructions { gap:10px; align-items:flex-start; }
-  .variant-pin-explorer .variant-pin-hold { min-width:110px; max-width:110px; font-size:10px; text-align:right; }
-  .variant-pin-explorer .variant-pin-detail { grid-template-columns:minmax(0,1fr); height:270px; gap:12px; padding:16px; }
+  .variant-pin-explorer .variant-pin-instructions { gap:10px; align-items:flex-start; padding:0 18px 8px; }
+  .variant-pin-explorer .variant-pin-hold { min-width:105px; max-width:105px; font-size:10px; text-align:right; }
+  .variant-pin-explorer .variant-pin-scroll { margin:0 10px; }
+  .variant-pin-explorer .variant-pin-navigation { gap:8px; margin:12px 18px 14px; }
+  .variant-pin-explorer .variant-pin-navigation>span { min-width:70px; font-size:10px; }
+  .variant-pin-explorer .variant-pin-detail { grid-template-columns:minmax(0,1fr); height:270px; gap:12px; margin:0 18px; padding:16px; }
   .variant-pin-explorer .variant-pin-detail-name { font-size:15px; height:38px; }
   .variant-pin-explorer .variant-pin-detail-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; align-items:center; }
   .variant-pin-explorer .variant-pin-detail-actions .evidence-badge { grid-column:1 / -1; justify-self:start; min-height:22px; }
   .variant-pin-explorer .variant-pin-detail-actions .button { min-height:40px; }
-  .variant-pin-explorer .variant-pin-pagination { align-items:flex-start; flex-direction:column; gap:12px; }
-  .variant-pin-explorer .variant-pin-pagination>div { align-self:flex-end; }
-  .variant-pin-explorer .variant-pin-empty { min-height:460px; }
 }
+/* Canvas changes are immediate and frame-coalesced; no perpetual animation or
+   interpolated target motion is used, including with reduced-motion enabled. */
 @media (prefers-reduced-motion:reduce) {
-  .variant-pin-explorer .variant-pin-head,.variant-pin-explorer .variant-pin-stem { transition:none; }
+  .variant-pin-explorer * { scroll-behavior:auto; }
 }
