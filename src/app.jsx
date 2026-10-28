@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import ProteinMap from './ProteinMap.jsx';
 import { GROUPS, filterVariants, sortVariants, format, makeCSV } from './data-utils.mjs';
@@ -49,8 +49,8 @@ function Methods({data,onClose}){
     <div className="source-card"><strong>ClinVar · {format(data.summary.variants)} distinct variation IDs</strong><span>{format(data.summary.sourceRows)} COL7A1 rows from {format(data.sources.clinvar.rowsScanned)} source rows. Assembly duplicates are grouped by VariationID.</span></div>
     <h3>How to read the map</h3><p>All coordinates are 1-based and inclusive, including the signal peptide. Only explicit protein HGVS on a RefSeq accession linked in the local UniProt entry is mapped, after reference-residue checks. Variants without a reliable protein position remain in the list. Selected ranges use interval overlap.</p>
     <p>Red includes pathogenic and likely pathogenic; green includes benign and likely benign. Conflicting and other classifications remain separate. Colors summarize the source classifications and do not assign new ones.</p>
-    <p><span className="diamond">◇</span> Purple diamonds identify glycine-to-another-amino-acid substitutions in the collagenous region (1254–2784). Synonymous changes, stop gains, frameshifts, and indels are excluded from this flag. Glycine status is independent of clinical significance.</p>
-    <p>Markers sharing an anchor and classification are grouped. Height scales with the square root of the number of variants, with a visual cap. Density bins count each variant once, at its reported start (clamped at the viewport edge for overlapping intervals). Use the list to inspect every record.</p>
+    <p><span className="diamond">◇</span> The Gly badge on individual variant cards identifies glycine-to-another-amino-acid substitutions in the collagenous region (1254–2784). Synonymous changes, stop gains, frameshifts, and indels are excluded from this flag. Glycine status is independent of clinical significance.</p>
+    <p>The overview uses at most 72 residue bins. Bar height scales with the square root of the variant count, using the same scale across all five classification lanes. Each variant is counted once at its reported start (clamped at the viewport edge for overlapping intervals). Hover over a lane to browse its variants in the dock, or choose all classifications. Click the map to hold a position; use the slider or arrow keys to move through it. Dock cards retain the original reported coordinates, and pagination makes every record accessible.</p>
     <h3>Review evidence & reproducibility</h3><p>Review stars summarize the supplied ClinVar review status, not pathogenicity or clinical severity. One star can include conflicting classifications. Missing status is shown as unknown. <a href="https://www.ncbi.nlm.nih.gov/clinvar/docs/review_status/" target="_blank" rel="noopener noreferrer">ClinVar review-status definitions ↗</a></p><p>Copy a view link to share the filters, selected range, map zoom and mode, sort order, and comparison IDs. Export a research session to preserve that recipe with the result IDs, reference versions, and source SHA-256 hashes. Shortlists are also saved in this browser.</p>
     <div className="download-links"><a className="button" href="https://www.uniprot.org/uniprotkb/Q02388/entry" target="_blank" rel="noopener noreferrer">UniProt Q02388 ↗</a><a className="button" href="https://github.com/theravingrooster/col7a1-domain-mutation-map" target="_blank" rel="noopener noreferrer">Source code & processing ↗</a></div>
     <h3>Mapping limitations</h3><ul>{data.processing.limitations.map(t=><li key={t}>{t}</li>)}</ul>
@@ -76,7 +76,7 @@ function App(){
   useEffect(()=>{if(!data)return;try{localStorage.setItem(PIN_STORAGE,JSON.stringify(pinnedIds));}catch{}},[pinnedIds,data]);
   useEffect(()=>{setShareLink('');setWorkspaceMessage('');},[filters,selection,view,sort,mapMode,pinnedIds]);
   const update = patch => {setFilters(f=>({...f,...patch}));setPage(1);setExportMessage('');};
-  const setSelection = s => {setSelectionState(s);setFrom(s?String(s.start):'');setTo(s?String(s.end):'');setRangeError('');setPage(1);setExportMessage('');if(s&&filters.mapping==='unmapped')setFilters(f=>({...f,mapping:'all'}));};
+  const setSelection = useCallback(s => {setSelectionState(s);setFrom(s?String(s.start):'');setTo(s?String(s.end):'');setRangeError('');setPage(1);setExportMessage('');if(s)setFilters(f=>f.mapping==='unmapped'?{...f,mapping:'all'}:f);},[]);
   const filtered = useMemo(()=>data ? filterVariants(data.variants,filters) : [],[data,filters]);
   const results = useMemo(()=>sortVariants(selection?filtered.filter(v=>v.position!=null&&v.position<=selection.end&&v.end>=selection.start):filtered,sort),[filtered,selection,sort]);
   const types=useMemo(()=>data?[...new Set(data.variants.flatMap(v=>v.types))].sort():[],[data]);

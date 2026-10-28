@@ -1,0 +1,100 @@
+/* The overview stays compact; the dock supplies readable individual records. */
+.protein-map-v2 { --map-grid:var(--line); }
+.protein-map-v2 .panel-heading { padding-bottom:16px; }
+.protein-map-v2 .map-context { font-size:12px; padding-bottom:12px; }
+.protein-map-v2 .map-tools { flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+.protein-map-v2 .overview-viewport { position:relative; margin:0 18px; }
+.protein-map-v2 .overview-svg { display:block; width:100%; height:auto; overflow:visible; user-select:none; }
+.protein-map-v2 .overview-grid { stroke:var(--line); stroke-dasharray:2 5; }
+.protein-map-v2 .overview-lane-label { fill:var(--ink); font-size:12px; font-weight:500; }
+.protein-map-v2 .overview-lane-count { fill:var(--muted); font-size:10px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+.protein-map-v2 .overview-bar { opacity:.82; }
+.protein-map-v2 .overview-active-band { fill:var(--green); opacity:.08; }
+.protein-map-v2 .overview-active-lane { fill:var(--green); opacity:.12; }
+.protein-map-v2 .overview-hit-area { cursor:crosshair; touch-action:auto; }
+.protein-map-v2 .overview-help { padding:8px 27px 15px; display:flex; align-items:center; justify-content:space-between; gap:12px; color:var(--muted); font-size:12px; line-height:1.5; }
+.protein-map-v2 .overview-help strong { color:var(--green); font-weight:600; }
+.protein-map-v2 .dock-panel { border-top:1px solid var(--line); background:var(--surface-soft); padding:20px 26px 14px; }
+.protein-map-v2 .dock-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+.protein-map-v2 .dock-heading h3 { font-size:16px; font-weight:600; letter-spacing:-.2px; }
+.protein-map-v2 .dock-heading p { color:var(--muted); font-size:12px; line-height:1.5; margin-top:5px; }
+.protein-map-v2 .dock-heading .eyebrow { font-size:9px; margin-bottom:7px; }
+.protein-map-v2 .dock-navigation { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+.protein-map-v2 .dock-navigation select { max-width:210px; border:1px solid var(--line); border-radius:6px; background:var(--input-bg); color:var(--ink); padding:8px 10px; font-size:12px; }
+.protein-map-v2 .dock-navigation button { min-height:34px; }
+.protein-map-v2 .dock-scrubber { display:flex; align-items:center; gap:12px; margin-top:16px; }
+.protein-map-v2 .dock-scrubber input[type=range] { width:100%; min-width:40px; accent-color:var(--green); cursor:ew-resize; height:24px; margin:0; }
+.protein-map-v2 .dock-scrubber label,.protein-map-v2 .dock-scrubber span { color:var(--muted); font-size:11px; white-space:nowrap; }
+.protein-map-v2 .variant-dock { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:9px; min-height:184px; padding:26px 5px 20px; isolation:isolate; }
+.protein-map-v2 .dock-card { position:relative; display:flex; flex-direction:column; align-items:flex-start; text-align:left; min-width:0; border:1px solid var(--line); border-top:3px solid var(--variant-color,var(--green)); border-radius:9px; background:var(--surface); padding:13px 10px 11px; box-shadow:0 2px 3px #142a2010; transform-origin:center bottom; transition:transform 130ms ease-out,box-shadow 130ms ease-out; line-height:1.45; }
+.protein-map-v2 .dock-card-name { color:var(--ink); font-size:12px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-weight:650; overflow-wrap:anywhere; }
+.protein-map-v2 .dock-card-position { color:var(--muted); font-size:11px; margin-top:5px; }
+.protein-map-v2 .dock-card-significance { display:flex; align-items:center; gap:5px; color:var(--ink); font-size:10px; margin-top:10px; }
+.protein-map-v2 .dock-card-id { font-size:10px; color:var(--muted); margin-top:auto; padding-top:9px; }
+.protein-map-v2 .dock-card-gly { color:var(--purple); font-size:10px; font-weight:600; margin-top:6px; }
+.protein-map-v2 .dock-card:focus-visible { z-index:4; transform:translateY(-8px) scale(1.10); box-shadow:0 8px 20px #142a2020; outline:2px solid var(--focus); }
+.protein-map-v2 .dock-empty { min-height:184px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; gap:8px; color:var(--muted); font-size:13px; padding:24px; }
+.protein-map-v2 .dock-empty strong { color:var(--ink); }
+.protein-map-v2 .dock-pagination { display:flex; align-items:center; justify-content:space-between; gap:14px; color:var(--muted); font-size:11px; min-height:32px; }
+.protein-map-v2 .dock-pagination>div { display:flex; gap:8px; align-items:center; }
+.protein-map-v2 .map-footer { font-size:10px; line-height:1.5; padding:11px 26px; }
+@media (hover:hover) and (pointer:fine) {
+  .protein-map-v2 .dock-card:hover { z-index:5; transform:translateY(-10px) scale(1.14); box-shadow:0 10px 24px #142a2026; border-color:var(--variant-color,var(--green)); }
+  .protein-map-v2 .dock-card:has(+ .dock-card:hover),.protein-map-v2 .dock-card:hover + .dock-card { z-index:2; transform:translateY(-4px) scale(1.04); }
+}
+@media (max-width:1050px) {
+  .protein-map-v2 .panel-heading { align-items:flex-start; }
+  .protein-map-v2 .variant-dock { gap:7px; }
+  .protein-map-v2 .dock-card { padding:11px 8px; }
+  .protein-map-v2 .dock-card-name { font-size:11px; }
+}
+@media (max-width:760px) {
+  .protein-map-v2 .overview-viewport { overflow-x:auto; margin:0 10px; }
+  .protein-map-v2 .overview-svg { min-width:720px; }
+  .protein-map-v2 .panel-heading { flex-direction:column; padding:20px 18px 14px; gap:15px; }
+  .protein-map-v2 .map-tools { justify-content:flex-start; }
+  .protein-map-v2 .map-context { padding:0 18px 12px; flex-wrap:wrap; gap:5px; }
+  .protein-map-v2 .overview-help { padding:9px 18px 14px; font-size:11px; align-items:flex-start; }
+  .protein-map-v2 .dock-panel { padding:18px 17px 12px; }
+  .protein-map-v2 .dock-heading { flex-direction:column; gap:12px; }
+  .protein-map-v2 .dock-navigation { justify-content:flex-start; }
+  .protein-map-v2 .variant-dock { grid-template-columns:repeat(7,minmax(126px,1fr)); overflow-x:auto; min-height:180px; margin:0 -9px; padding:24px 9px 18px; scroll-snap-type:x proximity; }
+  .protein-map-v2 .dock-card { scroll-snap-align:center; }
+  .protein-map-v2 .dock-card-name { font-size:12px; }
+  .protein-map-v2 .dock-pagination { flex-wrap:wrap; gap:8px; }
+  .protein-map-v2 .map-footer { padding:12px 18px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .protein-map-v2 .dock-card { transition:none; }
+  .protein-map-v2 .dock-card:hover,.protein-map-v2 .dock-card:focus-visible,.protein-map-v2 .dock-card:has(+ .dock-card:hover),.protein-map-v2 .dock-card:hover + .dock-card { transform:none; }
+}
+.protein-map-v2 .overview-baseline,.protein-map-v2 .overview-domain-line { stroke:var(--line); }
+.protein-map-v2 .overview-domain-line { stroke-width:2px; }
+.protein-map-v2 .overview-selection { fill:var(--green); opacity:.10; }
+.protein-map-v2 .overview-help { justify-content:flex-start; }
+.protein-map-v2 .overview-help-icon { color:var(--green); font-size:20px; }
+.protein-map-v2 .overview-help-secondary { margin-left:auto; font-size:11px; }
+.protein-map-v2 .dock-state { display:inline-flex; padding:3px 7px; border:1px solid var(--line); background:var(--surface); border-radius:12px; color:var(--muted); text-transform:none; letter-spacing:0; font-weight:450; }
+.protein-map-v2 .dock-state.is-locked { background:var(--success-bg); color:var(--green); }
+.protein-map-v2 .dock-record-count { color:var(--muted); font-weight:400; font-size:12px; margin-left:12px; }
+.protein-map-v2 .dock-heading h3 small { color:var(--muted); font-size:12px; font-weight:400; }
+.protein-map-v2 .dock-card-position { margin:0 0 8px; width:100%; display:flex; align-items:center; gap:3px; }
+.protein-map-v2 .dock-gly { margin-left:auto; color:var(--purple); font-size:9px; font-weight:600; }
+.protein-map-v2 .dock-empty { grid-column:1 / -1; min-height:132px; }
+@media(max-width:760px) {
+  .protein-map-v2 .overview-help-secondary { display:none; }
+  .protein-map-v2 .dock-paging-note { display:block; margin-top:4px; }
+  .protein-map-v2 .variant-dock:has(.dock-empty) { grid-template-columns:1fr; }
+}
+/* Stable card height keeps the workspace still while the pointer scrubs. */
+.protein-map-v2 .dock-card { height:150px; }
+.protein-map-v2 .dock-card-name,.protein-map-v2 .dock-card-significance { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+.protein-map-v2 .dock-card-name { min-height:35px; }
+.protein-map-v2 .dock-card-significance { margin-top:5px; }
+@media (hover:hover) and (pointer:fine) {
+  .protein-map-v2 .dock-card:hover { transform:translateY(-12px) scale(1.22); }
+  .protein-map-v2 .dock-card:has(+ .dock-card:hover),.protein-map-v2 .dock-card:hover + .dock-card { transform:translateY(-5px) scale(1.06); }
+}
+@media(prefers-reduced-motion:reduce) {
+  .protein-map-v2 .dock-card:hover,.protein-map-v2 .dock-card:has(+ .dock-card:hover),.protein-map-v2 .dock-card:hover + .dock-card { transform:none; }
+}

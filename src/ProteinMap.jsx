@@ -1,93 +1,231 @@
-import React, { useMemo, useState } from 'react';
-import { GROUPS, format, groupMarkers } from './data-utils.mjs';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { GROUPS, format } from './data-utils.mjs';
+import { buildMapBins, binIndexAtRatio, getBinVariants, getDockPage } from './map-utils.mjs';
+import './protein-map.css';
 
-const W = 1250, LEFT = 150, RIGHT = 25, TRACK = W - LEFT - RIGHT;
+const W = 1200, H = 328, LEFT = 164, RIGHT = 28, TRACK = W - LEFT - RIGHT;
+const TOP = 18, LANE = 34, CHART_HEIGHT = LANE * GROUPS.length;
+const PAGE_SIZE = 7;
 const familyColor = d => d.label.includes('VWFA') ? '#7a9cba' : d.label.includes('Fibronectin') ? '#9bb6a8' : d.label.includes('Kunitz') ? '#b0a0c9' : '#d5dbdc';
 const regionColor = d => d.label === 'NC1' ? '#dce9e3' : d.label === 'NC2' ? '#e7e2ef' : '#dce9ec';
 const shortDomain = d => d.label.replace('Fibronectin type-III ', 'FN').replace('VWFA ', 'vWA ').replace('BPTI/Kunitz inhibitor', 'K');
+const variantName = v => v.proteinHgvs[0] || v.codingHgvs[0] || `Variation ${v.variationId}`;
+const activate = (event, action) => {
+  if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); action(); }
+};
 
-export default function ProteinMap({ data, variants, selection, setSelection, view, setView, onInspect, mode, setMode }) {
-  const [hover, setHover] = useState(null);
-  const { markers, binSize } = useMemo(() => groupMarkers(variants, view, mode), [variants, view, mode]);
+function axisTicks(view) {
+  const length = view.end - view.start + 1;
+  if (length === 1) return [view.start];
+  const target = length / 6;
+  const power = 10 ** Math.floor(Math.log10(target));
+  const step = Math.max(1, [1, 2, 5, 10].map(n => n * power).find(n => n >= target));
+  const ticks = [view.start];
+  for (let p = Math.ceil((view.start + step / 3) / step) * step; p < view.end - step / 3; p += step) ticks.push(p);
+  ticks.push(view.end);
+  return ticks;
+}
+
+// Hover never re-renders this artwork. Each lane is one path, regardless of
+// whether the underlying snapshot contains dozens or thousands of records.
+const OverviewArt = memo(function OverviewArt({ model, domains, selection, onSelectDomain }) {
+  const { view, bins } = model;
   const length = view.end - view.start + 1;
   const x = p => LEFT + (p - view.start) / length * TRACK;
-  const width = (s,e) => (e - s + 1) / length * TRACK;
-  const visibleDomains = data.domains.filter(d => d.end >= view.start && d.start <= view.end);
-  const ticks = useMemo(() => {
-    if (view.start === view.end) return [view.start];
-    const step = length > 2000 ? 250 : length > 800 ? 100 : length > 300 ? 50 : length > 100 ? 20 : length > 40 ? 10 : 5;
-    const result = [view.start];
-    for (let p = Math.ceil((view.start + step / 2) / step) * step; p < view.end - step / 2; p += step) result.push(p);
-    result.push(view.end);
-    return result;
-  }, [view.start, view.end, length]);
+  const width = (start, end) => (end - start + 1) / length * TRACK;
+  const visibleDomains = domains.filter(d => d.end >= view.start && d.start <= view.end);
+  const maxCount = Math.max(1, model.maxCount);
+  const paths = GROUPS.map((group, lane) => bins.map(bin => {
+    const count = bin.counts[group.id];
+    if (!count) return '';
+    const h = Math.max(2, Math.sqrt(count / maxCount) * 23);
+    const px = x(bin.start) + 1;
+    const py = TOP + lane * LANE + 27 - h;
+    const barWidth = Math.max(1, width(bin.start, bin.end) - 2);
+    return `M${px.toFixed(2)},${py.toFixed(2)}h${barWidth.toFixed(2)}v${h.toFixed(2)}h-${barWidth.toFixed(2)}Z`;
+  }).join(''));
+  return <g className="overview-art">
+    <defs><clipPath id="overview-plot-clip"><rect x={LEFT} y="0" width={TRACK} height={H}/></clipPath></defs>
+    {axisTicks(view).map(t => <g key={t}>
+      <line x1={x(t)} x2={x(t)} y1={TOP} y2={TOP + CHART_HEIGHT} className="overview-grid"/>
+      <text x={x(t)} y="210" textAnchor={t === view.start ? 'start' : t === view.end ? 'end' : 'middle'} className="axis-text">{format(t)}</text>
+    </g>)}
+    {selection && <g clipPath="url(#overview-plot-clip)" pointerEvents="none">
+      <rect x={x(selection.start)} y={TOP} width={Math.max(width(selection.start, selection.end), 2)} height={CHART_HEIGHT} className="overview-selection"/>
+    </g>}
+    {GROUPS.map((group, lane) => <g key={group.id}>
+      <circle cx="12" cy={TOP + lane * LANE + 15} r="3.5" fill={group.color}/>
+      <text x="25" y={TOP + lane * LANE + 19} className="overview-lane-label">{group.short}</text>
+      <text x={LEFT - 13} y={TOP + lane * LANE + 19} textAnchor="end" className="overview-lane-count">{format(model.totals[group.id])}</text>
+      <line x1={LEFT} x2={W - RIGHT} y1={TOP + lane * LANE + 28} y2={TOP + lane * LANE + 28} className="overview-baseline"/>
+      <path d={paths[lane]} fill={group.color} className="overview-bar"/>
+    </g>)}
+    <text x="12" y="251" className="track-label strong">Regions</text>
+    <text x="12" y="294" className="track-label">Subdomains</text>
+    <g clipPath="url(#overview-plot-clip)">
+      {visibleDomains.filter(d => d.level !== 'subdomain').map(d => <g key={d.id} role="button" tabIndex="0" className="domain" aria-label={`Select ${d.label}, residues ${d.start} to ${d.end}`} onClick={() => onSelectDomain(d)} onKeyDown={e => activate(e, () => onSelectDomain(d))}>
+        <title>{`${d.label} · ${d.start}–${d.end} aa · click to select`}</title>
+        <rect x={x(d.start)} y="233" width={width(d.start, d.end)} height="28" rx="5" fill={regionColor(d)} stroke={selection?.id === d.id ? '#266e60' : '#b9cbca'} strokeWidth={selection?.id === d.id ? 2 : 1}/>
+        {width(Math.max(d.start, view.start), Math.min(d.end, view.end)) > 45 && <text x={x((Math.max(d.start, view.start) + Math.min(d.end, view.end)) / 2)} y="251" textAnchor="middle" className="domain-text">{d.label === 'Collagenous' && width(d.start, d.end) > 280 ? 'Collagenous · triple-helical region' : d.label}</text>}
+      </g>)}
+      <line x1={LEFT} x2={W - RIGHT} y1="289" y2="289" className="overview-domain-line"/>
+      {visibleDomains.filter(d => d.level === 'subdomain').map(d => <g key={d.id} role="button" tabIndex="0" className="domain" aria-label={`Select ${d.label}, residues ${d.start} to ${d.end}`} onClick={() => onSelectDomain(d)} onKeyDown={e => activate(e, () => onSelectDomain(d))}>
+        <title>{`${d.label} · ${d.start}–${d.end} aa · click to select`}</title>
+        <rect x={x(d.start)} y="276" width={width(d.start, d.end)} height="26" rx="4" fill={familyColor(d)} stroke={selection?.id === d.id ? '#205f52' : '#fff'} strokeWidth={selection?.id === d.id ? 2 : 1}/>
+        {width(Math.max(d.start, view.start), Math.min(d.end, view.end)) > 17 && <text x={x((Math.max(d.start, view.start) + Math.min(d.end, view.end)) / 2)} y="294" textAnchor="middle" className="subdomain-text">{shortDomain(d)}</text>}
+      </g>)}
+    </g>
+  </g>;
+});
+
+const DockCard = memo(function DockCard({ variant, onInspect }) {
+  const group = GROUPS.find(g => g.id === variant.significanceGroup);
+  return <button className="dock-card" title={`${variantName(variant)} · ${variant.clinicalSignificance.join(' / ')}`} style={{ '--variant-color': group.color }} onClick={() => onInspect(variant)} aria-label={`Inspect ${variantName(variant)}, variant ${variant.variationId}, ${variant.clinicalSignificance.join(' / ')}`}>
+    <span className="dock-card-position">{format(variant.position)}{variant.end !== variant.position ? `–${format(variant.end)}` : ''} <small>aa</small>{variant.glycineSubstitution && <span className="dock-gly" title="Collagenous glycine substitution">◇ Gly</span>}</span>
+    <strong className="dock-card-name mono" title={variantName(variant)}>{variantName(variant)}</strong>
+    <span className="dock-card-significance" title={variant.clinicalSignificance.join(' / ') || group.label}>{variant.clinicalSignificance.join(' / ') || group.label}</span>
+    <span className="dock-card-id">Variation {variant.variationId} <span aria-hidden="true">↗</span></span>
+  </button>;
+});
+
+function exportMap(source, data, model) {
+  if (!source) return;
+  const clone = source.cloneNode(true);
+  const originals = [source, ...source.querySelectorAll('*')], copies = [clone, ...clone.querySelectorAll('*')];
+  originals.forEach((node, i) => {
+    const style = getComputedStyle(node);
+    for (const prop of ['fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'opacity', 'font-family', 'font-size', 'font-weight', 'text-anchor']) copies[i].style.setProperty(prop, style.getPropertyValue(prop));
+    copies[i].removeAttribute('tabindex'); copies[i].removeAttribute('role');
+  });
+  clone.querySelectorAll('[data-export-ignore]').forEach(node => node.remove());
+  const ns = 'http://www.w3.org/2000/svg', outer = document.createElementNS(ns, 'svg');
+  outer.setAttribute('xmlns', ns); outer.setAttribute('viewBox', `0 0 ${W} ${H + 90}`); outer.setAttribute('width', String(W)); outer.setAttribute('height', String(H + 90));
+  const colors = getComputedStyle(document.documentElement);
+  const bg = document.createElementNS(ns, 'rect'); bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', colors.getPropertyValue('--surface').trim() || '#fff'); outer.append(bg);
+  const label = (text, y, size) => {
+    const el = document.createElementNS(ns, 'text'); el.setAttribute('x', '18'); el.setAttribute('y', String(y)); el.setAttribute('fill', colors.getPropertyValue('--ink').trim() || '#253c38'); el.setAttribute('font-family', 'Arial, sans-serif'); el.setAttribute('font-size', String(size)); el.textContent = text; outer.append(el);
+  };
+  label(`COL7A1 · Q02388 · ${model.view.start}–${model.view.end} aa · variant density`, 26, 18);
+  clone.setAttribute('y', '36'); clone.setAttribute('width', String(W)); clone.setAttribute('height', String(H)); outer.append(clone);
+  label(`Prepared ${data.snapshot.preparedDate} · ${model.mappedCount} mapped variants · ${model.binSize}-residue bins · shared square-root count scale`, H + 59, 12);
+  label('1-based precursor · ClinVar release date not recorded · export session JSON for filters and source hashes', H + 77, 11);
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(outer)], { type: 'image/svg+xml;charset=utf-8' }));
+  const link = document.createElement('a'); link.href = url; link.download = `COL7A1-map-${model.view.start}-${model.view.end}.svg`; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function ProteinMap({ data, variants, selection, setSelection, view, setView, onInspect, mode, setMode }) {
+  const model = useMemo(() => buildMapBins(variants, view, 72), [variants, view.start, view.end]);
+  const [focus, setFocus] = useState({ index: 0, group: 'all' });
+  const [locked, setLocked] = useState(false);
+  const [page, setPage] = useState(0);
+  const svgRef = useRef(null), frame = useRef(null), pending = useRef(null);
+  const activeIndex = Math.min(focus.index, model.bins.length - 1);
+  const bin = model.bins[activeIndex];
+  const records = useMemo(() => getBinVariants(model, activeIndex, focus.group), [model, activeIndex, focus.group]);
+  const dock = getDockPage(records, page, PAGE_SIZE);
+  const length = view.end - view.start + 1;
   const full = view.start === 1 && view.end === data.protein.length;
-  const showTip = (e, info) => {
-    const bounds = e.currentTarget.ownerSVGElement.getBoundingClientRect();
-    const target = e.currentTarget.getBoundingClientRect();
-    setHover({ ...info, left: Math.min(Math.max(target.left - bounds.left + target.width / 2, 150), bounds.width - 150), top: target.top - bounds.top });
-  };
-  const activate = (e, fn) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } };
-  const chooseDomain = d => setSelection({ start: d.start, end: d.end, label: d.label, id: d.id });
-  const chooseMarker = m => {
-    setSelection({ start: m.start, end: m.end, label: m.start === m.end ? `Residue ${format(m.start)}` : `Residues ${format(m.start)}–${format(m.end)}` });
-    if (m.variants.length === 1 && mode === 'variants') onInspect(m.variants[0]);
-    setHover(null);
-  };
-  const exportSVG = () => {
-    const source=document.querySelector('.protein-svg');if(!source)return;
-    const clone=source.cloneNode(true), originals=[source,...source.querySelectorAll('*')], copies=[clone,...clone.querySelectorAll('*')];
-    originals.forEach((node,i)=>{const style=getComputedStyle(node);for(const prop of ['fill','stroke','stroke-width','stroke-dasharray','opacity','font-family','font-size','font-weight','text-anchor'])copies[i].style.setProperty(prop,style.getPropertyValue(prop));copies[i].removeAttribute('tabindex');copies[i].removeAttribute('role');});
-    const ns='http://www.w3.org/2000/svg', outer=document.createElementNS(ns,'svg');outer.setAttribute('xmlns',ns);outer.setAttribute('viewBox',`0 0 ${W} 500`);outer.setAttribute('width',String(W));outer.setAttribute('height','500');
-    const bg=document.createElementNS(ns,'rect');bg.setAttribute('width','100%');bg.setAttribute('height','100%');bg.setAttribute('fill',getComputedStyle(document.documentElement).getPropertyValue('--surface').trim()||'#fff');outer.append(bg);
-    const label=(text,y,size)=>{const el=document.createElementNS(ns,'text');el.setAttribute('x','18');el.setAttribute('y',String(y));el.setAttribute('fill',getComputedStyle(document.documentElement).getPropertyValue('--ink').trim());el.setAttribute('font-family','Arial, sans-serif');el.setAttribute('font-size',String(size));el.textContent=text;outer.append(el);};
-    label(`COL7A1 · Q02388 · ${view.start}–${view.end} aa · ${mode}`,26,18);clone.setAttribute('y','36');clone.setAttribute('width',String(W));clone.setAttribute('height','418');outer.append(clone);
-    label(`Prepared ${data.snapshot.preparedDate} · ${markers.reduce((n,m)=>n+m.variants.length,0)} mapped variants in view · height = √count · 1-based precursor`,472,12);
-    label('Source-reported classifications · ClinVar release date not recorded · export session JSON for filters and source hashes',490,11);
-    const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(outer)],{type:'image/svg+xml;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`COL7A1-map-${view.start}-${view.end}.svg`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  };
-  return <section className="map-panel" aria-labelledby="map-heading">
+  const focusedGroup = GROUPS.find(g => g.id === focus.group);
+  const focusLane = GROUPS.findIndex(g => g.id === focus.group);
+  const chooseDomain = useCallback(d => setSelection({ start: d.start, end: d.end, label: d.label, id: d.id }), [setSelection]);
+  const chooseFocus = useCallback((index, group, freeze = false) => {
+    setFocus(current => current.index === index && current.group === group ? current : { index, group });
+    setPage(0);
+    if (freeze) {
+      if (frame.current != null) cancelAnimationFrame(frame.current);
+      frame.current = null; pending.current = null; setLocked(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const middle = Math.floor(model.bins.length / 2);
+    const initial = model.bins.reduce((best, item) => item.total && Math.abs(item.index - middle) < Math.abs(best - middle) ? item.index : best, model.bins.find(item => item.total)?.index ?? middle);
+    setFocus({ index: initial, group: 'all' }); setPage(0); setLocked(false);
+    if (frame.current != null) cancelAnimationFrame(frame.current);
+    frame.current = null; pending.current = null;
+  }, [model]);
+  useEffect(() => () => { if (frame.current != null) cancelAnimationFrame(frame.current); }, []);
+
+  const stopPointer = useCallback(() => {
+    if (frame.current != null) cancelAnimationFrame(frame.current);
+    frame.current = null; pending.current = null;
+  }, []);
+  const locate = useCallback((clientX, clientY, bounds) => {
+    const px = (clientX - bounds.left) / bounds.width * W;
+    const py = (clientY - bounds.top) / bounds.height * H;
+    return {
+      index: binIndexAtRatio((px - LEFT) / TRACK, model),
+      group: GROUPS[Math.max(0, Math.min(GROUPS.length - 1, Math.floor((py - TOP) / LANE)))].id,
+    };
+  }, [model]);
+  const followPointer = useCallback(event => {
+    if (locked || mode !== 'variants' || event.pointerType === 'touch') return;
+    pending.current = { x: event.clientX, y: event.clientY };
+    if (frame.current != null) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = null;
+      if (!pending.current || !svgRef.current) return;
+      const next = locate(pending.current.x, pending.current.y, svgRef.current.getBoundingClientRect());
+      chooseFocus(next.index, next.group);
+    });
+  }, [locked, mode, locate, chooseFocus]);
+  const pinPointer = useCallback(event => {
+    if (frame.current != null) cancelAnimationFrame(frame.current);
+    frame.current = null; pending.current = null;
+    const next = locate(event.clientX, event.clientY, svgRef.current.getBoundingClientRect());
+    chooseFocus(next.index, next.group, true);
+    if (mode !== 'variants') setMode('variants');
+  }, [locate, chooseFocus, mode, setMode]);
+  const moveBin = delta => chooseFocus(Math.max(0, Math.min(model.bins.length - 1, activeIndex + delta)), focus.group, true);
+
+  return <section className="map-panel protein-map-v2" aria-labelledby="map-heading">
     <div className="panel-heading">
-      <div><div className="eyebrow"><span className="live-dot"/> PROTEIN EXPLORER</div><h2 id="map-heading">A sequence-level view</h2></div>
-      <div className="map-tools"><div className="segmented" aria-label="Map display">
-        <button aria-pressed={mode === 'variants'} onClick={() => { setMode('variants'); setHover(null); }}>Variants</button>
-        <button aria-pressed={mode === 'density'} onClick={() => { setMode('density'); setHover(null); }}>Density</button>
-      </div><button className="button small" onClick={exportSVG}>Export SVG ↓</button><button className="button small" disabled={!selection} onClick={() => {setView({start: selection.start, end: selection.end}); setHover(null);}}>Zoom to selection <span>↗</span></button>
-      {!full && <button className="text-button" onClick={() => {setView({start:1,end:data.protein.length});setHover(null);}}>Full protein ↺</button>}</div>
+      <div><div className="eyebrow"><span className="live-dot"/> PROTEIN EXPLORER</div><h2 id="map-heading">Find a region. Explore its variants.</h2></div>
+      <div className="map-tools">
+        <div className="segmented" aria-label="Map display">
+          <button aria-pressed={mode === 'variants'} onClick={() => setMode('variants')}>Variant dock</button>
+          <button aria-pressed={mode === 'density'} onClick={() => setMode('density')}>Density only</button>
+        </div>
+        <button className="button small" onClick={() => exportMap(svgRef.current, data, model)}>Export SVG ↓</button>
+        <button className="button small" disabled={!selection} onClick={() => setView({ start: selection.start, end: selection.end })}>Zoom to selection ↗</button>
+        {!full && <button className="text-button" onClick={() => setView({ start: 1, end: data.protein.length })}>Full protein ↺</button>}
+      </div>
     </div>
-    <div className="map-context"><span><strong>{format(markers.reduce((count, marker) => count + marker.variants.length, 0))}</strong> mapped variants in view <span className="muted">· selection highlighted below</span></span><span className="mono">{format(view.start)}—{format(view.end)} aa</span></div>
-    <div className="map-scroll"><div className="svg-wrap" onMouseLeave={() => setHover(null)}>
-      <svg className="protein-svg" viewBox={`0 0 ${W} 418`} aria-label="Interactive COL7A1 protein map. Select a domain or variant marker to filter the table." onKeyDown={e => {if(e.key === 'Escape') setHover(null);}}>
-        <defs><clipPath id="plot-clip"><rect x={LEFT} y="10" width={TRACK} height="380" /></clipPath><pattern id="collagen-pattern" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 10 L10 -2 M8 12 L12 8" stroke="#a9c7cd" strokeWidth="1" opacity=".6"/></pattern></defs>
-        {ticks.map(t => <g key={t}><line x1={x(t)} x2={x(t)} y1="18" y2="375" stroke="#e6eae8" strokeDasharray="3 5"/><text x={x(t)} y="401" textAnchor={t===view.start?'start':t===view.end?'end':'middle'} className="axis-text">{format(t)}</text></g>)}
-        {selection && <g clipPath="url(#plot-clip)" pointerEvents="none"><rect x={x(selection.start)} y="15" width={Math.max(width(selection.start,selection.end),2)} height="360" fill="#0b6958" opacity=".07"/><line x1={x(selection.start)} x2={x(selection.start)} y1="15" y2="375" stroke="#398774" strokeDasharray="3 3"/><line x1={x(selection.end+1)} x2={x(selection.end+1)} y1="15" y2="375" stroke="#398774" strokeDasharray="3 3"/></g>}
-        {GROUPS.map((g, i) => <g key={g.id}><circle cx="18" cy={42+i*48} r="3.5" fill={g.color}/><text x="30" y={46+i*48} className="track-label">{g.short}</text><line x1={LEFT} x2={W-RIGHT} y1={64+i*48} y2={64+i*48} stroke="#e3e8e5"/></g>)}
-        <g clipPath="url(#plot-clip)">{markers.map(m => {
-          const group = GROUPS.find(g => g.id === m.group), lane = GROUPS.indexOf(group), base = 64+lane*48;
-          const h = Math.min(39, 8+Math.sqrt(m.variants.length)*8), cx = x(m.start), cy = base-h;
-          const tooltip = { title: mode==='density' ? `${format(m.start)}–${format(m.end)} aa · ${m.variants.length} variants` : `${m.variants[0].proteinHgvs[0] || 'Protein variant'}${m.variants.length>1 ? ` + ${m.variants.length-1} more` : ''}`, detail: mode==='density' ? `${group.label} · e.g. ${m.variants[0].proteinHgvs[0]}` : m.variants[0].clinicalSignificance.join(' / ') || 'Not provided', foot: `Position ${format(m.start)}${m.end!==m.start?'–'+format(m.end):''} aa${m.glycine?(m.variants.length>1?' · group contains Gly substitutions':' · Gly substitution'):''}`, action: 'Click to explore variants' };
-          return <g key={m.key} className="marker" role="button" tabIndex={markers.length<=250?0:-1} aria-label={`${tooltip.title}; ${tooltip.detail}; ${tooltip.foot}`} onMouseEnter={e=>showTip(e,tooltip)} onFocus={e=>showTip(e,tooltip)} onBlur={()=>setHover(null)} onKeyDown={e=>activate(e,()=>chooseMarker(m))} onClick={()=>chooseMarker(m)}>
-            <title>{tooltip.title} · {tooltip.detail} · {tooltip.foot}</title>
-            {mode==='density' ? <rect x={cx} y={cy} width={Math.max(1,width(m.start,m.end)-1.6)} height={h} rx="1.5" fill={group.color} opacity=".8"/> : <><line x1={cx} x2={cx} y1={base} y2={cy} stroke={group.color} opacity=".43" strokeWidth="1"/>{m.end>m.start && <line x1={cx} x2={x(m.end)} y1={cy} y2={cy} stroke={group.color} strokeWidth="3"/>}<circle cx={cx} cy={cy} r="2.4" fill={group.color}/><circle cx={cx} cy={cy} r="5" fill="transparent"/></>}
-            {m.glycine && <path d={`M${cx} ${cy-4}l4 4 -4 4 -4 -4Z`} fill="none" stroke="#7953b0" strokeWidth="1.5"/>}
-          </g>;
-        })}</g>
-        <text x="18" y="301" className="track-label strong">Regions</text><text x="18" y="353" className="track-label">Subdomains</text>
-        <g clipPath="url(#plot-clip)">
-          {visibleDomains.filter(d=>d.level!=='subdomain').map(d => <g key={d.id} role="button" tabIndex="0" className="domain" aria-label={`Select ${d.label}, residues ${d.start} to ${d.end}`} onClick={()=>chooseDomain(d)} onKeyDown={e=>activate(e,()=>chooseDomain(d))} onFocus={e=>showTip(e,{title:d.label,detail:d.description,foot:`${d.start}–${d.end} aa · UniProt annotation`,action:'Enter to select'})} onBlur={()=>setHover(null)} onMouseEnter={e=>showTip(e,{title:d.label,detail:d.description,foot:`${d.start}–${d.end} aa · UniProt annotation`,action:'Click to filter this region'})}>
-            <rect x={x(d.start)} y="279" width={width(d.start,d.end)} height="35" rx="4" fill={regionColor(d)} stroke={selection?.id===d.id?'#266e60':'#b9cbca'} strokeWidth={selection?.id===d.id?2:1}/>
-            {d.label==='Collagenous' && <rect x={x(d.start)} y="279" width={width(d.start,d.end)} height="35" rx="4" fill="url(#collagen-pattern)" pointerEvents="none"/>}
-            {width(Math.max(d.start,view.start),Math.min(d.end,view.end))>45 && <text x={x((Math.max(d.start,view.start)+Math.min(d.end,view.end))/2)} y="301" textAnchor="middle" className="domain-text">{d.label==='Collagenous' && width(d.start,d.end)>280 ? 'Collagenous · triple-helical region' : d.label}</text>}
-          </g>)}
-          <line x1={LEFT} x2={W-RIGHT} y1="348" y2="348" stroke="#c9d3d0" strokeWidth="2"/>
-          {visibleDomains.filter(d=>d.level==='subdomain').map(d => <g key={d.id} role="button" tabIndex="0" className="domain" aria-label={`Select ${d.label}, residues ${d.start} to ${d.end}`} onClick={()=>chooseDomain(d)} onKeyDown={e=>activate(e,()=>chooseDomain(d))} onFocus={e=>showTip(e,{title:d.label,detail:'UniProt subdomain',foot:`${d.start}–${d.end} aa`,action:'Enter to select'})} onBlur={()=>setHover(null)} onMouseEnter={e=>showTip(e,{title:d.label,detail:'UniProt subdomain',foot:`${d.start}–${d.end} aa`,action:'Click to filter this domain'})}>
-            <rect x={x(d.start)} y="333" width={width(d.start,d.end)} height="30" rx="3" fill={familyColor(d)} stroke={selection?.id===d.id?'#205f52':'#fff'} strokeWidth={selection?.id===d.id?2:1}/>
-            {width(Math.max(d.start,view.start),Math.min(d.end,view.end))>17 && <text x={x((Math.max(d.start,view.start)+Math.min(d.end,view.end))/2)} y="352" textAnchor="middle" className="subdomain-text">{shortDomain(d)}</text>}
-          </g>)}
-        </g>
+    <div className="map-context"><span><strong>{format(model.mappedCount)}</strong> mapped variants <span className="muted">· {model.binSize}-residue bins · shared √count scale</span></span><span className="mono">{format(view.start)}—{format(view.end)} aa</span></div>
+    <div className="overview-help" id="map-help"><span className="overview-help-icon" aria-hidden="true">↔</span><span>{mode === 'variants' ? 'Move across a colored track to reveal individual variants below. Click to hold a spot.' : 'A compact view of variant counts. Click a track to open its individual records.'}</span><span className="overview-help-secondary">Click a domain to select its region.</span></div>
+    <div className="overview-viewport">
+      <svg ref={svgRef} className="protein-svg overview-svg" viewBox={`0 0 ${W} ${H}`} aria-label={`COL7A1 variant density by protein position and clinical significance. ${mode === 'variants' ? 'Use the position slider below to explore individual records.' : 'Switch to Variant dock to explore individual records.'}`} aria-describedby="map-help">
+        <OverviewArt model={model} domains={data.domains} selection={selection} onSelectDomain={chooseDomain}/>
+        {mode === 'variants' && bin && <g className="overview-highlight" pointerEvents="none" data-export-ignore="true">
+          <rect x={LEFT + (bin.start - view.start) / length * TRACK} y={TOP} width={(bin.end - bin.start + 1) / length * TRACK} height={CHART_HEIGHT} className="overview-active-band"/>
+          {focusLane >= 0 && <rect x={LEFT + (bin.start - view.start) / length * TRACK} y={TOP + focusLane * LANE} width={(bin.end - bin.start + 1) / length * TRACK} height={LANE} className="overview-active-lane" style={{ '--variant-color': focusedGroup.color }}/>}
+        </g>}
+        <rect x={LEFT} y={TOP} width={TRACK} height={CHART_HEIGHT} fill="transparent" className="overview-hit-area" onPointerMove={followPointer} onPointerLeave={stopPointer} onClick={pinPointer} data-export-ignore="true"/>
       </svg>
-      {hover && <div className="map-tooltip" role="tooltip" style={{left:hover.left,top:Math.max(0,hover.top-12)}}><strong>{hover.title}</strong><span>{hover.detail}</span><span className="mono">{hover.foot}</span><small>{hover.action}</small></div>}
-    </div></div>
-    <div className="map-footer"><span><span className="diamond">◇</span> Collagenous glycine substitution <span className="divider">/</span> <span className="swatch vwa"/> vWA <span className="swatch fn"/> Fibronectin III <span className="swatch kunitz"/> Kunitz</span><span>{mode==='density' ? `${binSize}-residue bins · height = √count` : 'Markers at reported residues · height = √count'} <span className="divider">/</span> Click a region to explore</span></div>
+    </div>
+    {mode === 'variants' && bin && <div className="dock-panel">
+      <div className="dock-heading">
+        <div><div className="eyebrow">VARIANT DOCK <span className={locked ? 'dock-state is-locked' : 'dock-state'}>{locked ? 'Held' : 'Following pointer'}</span></div><h3>{format(bin.start)}–{format(bin.end)} <small>aa</small> <span className="dock-record-count">{format(records.length)} {records.length === 1 ? 'record' : 'records'}</span></h3></div>
+        <div className="dock-navigation">
+          <select aria-label="Dock classification" value={focus.group} onChange={event => chooseFocus(activeIndex, event.target.value, true)}><option value="all">All classifications</option>{GROUPS.map(g => <option key={g.id} value={g.id}>{g.short}</option>)}</select>
+          <button className="button small" aria-pressed={locked} onClick={() => { stopPointer(); setLocked(value => !value); }}>{locked ? 'Resume hover' : 'Hold this spot'}</button>
+          <button className="button small" onClick={() => setSelection({ start: bin.start, end: bin.end, label: `Residues ${format(bin.start)}–${format(bin.end)}` })}>Filter this range ↗</button>
+        </div>
+      </div>
+      <div className="dock-scrubber">
+        <button className="button small" aria-label="Previous protein window" disabled={activeIndex === 0} onClick={() => moveBin(-1)}>←</button>
+        <input type="range" min="0" max={model.bins.length - 1} value={activeIndex} aria-label="Explore protein position" aria-valuetext={`${bin.start} to ${bin.end} amino acids`} onChange={event => chooseFocus(Number(event.target.value), focus.group, true)}/>
+        <button className="button small" aria-label="Next protein window" disabled={activeIndex === model.bins.length - 1} onClick={() => moveBin(1)}>→</button>
+        <span>{format(bin.start)}–{format(bin.end)} aa</span>
+      </div>
+      <div className="variant-dock" aria-label={`Individual variants at ${bin.start} to ${bin.end} amino acids`}>
+        {dock.records.length ? dock.records.map(v => <DockCard key={v.variationId} variant={v} onInspect={onInspect}/>) : <div className="dock-empty"><strong>No {focusedGroup ? focusedGroup.short.toLowerCase() : ''} records in this window.</strong><span>Move along the map, choose another classification, or broaden the active filters.</span>{focus.group !== 'all' && <button className="text-button" onClick={() => chooseFocus(activeIndex, 'all', true)}>Show all classifications here</button>}</div>}
+      </div>
+      <div className="dock-pagination"><span>{records.length ? `${dock.start}–${dock.end} of ${format(records.length)} records` : '0 records'} <span className="dock-paging-note">· Hover a card to enlarge; click for evidence and sequence.</span></span><div><button className="button small" disabled={dock.page === 0} onClick={() => { setPage(dock.page - 1); setLocked(true); }}>Previous records</button><button className="button small" disabled={dock.page >= dock.pages - 1} onClick={() => { setPage(dock.page + 1); setLocked(true); }}>Next records</button></div></div>
+    </div>}
+    <div className="map-footer"><span>One count per mapped record at its reported anchor; overlaps beginning outside the view are placed at its edge.</span><span><span className="diamond">◇</span> Glycine substitutions are marked on individual cards.</span></div>
   </section>;
 }
+
+export default memo(ProteinMap);

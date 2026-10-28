@@ -4,7 +4,7 @@ Live: https://col7a1-domain-mutation-map.vercel.app
 
 Repository: https://github.com/theravingrooster/col7a1-domain-mutation-map
 
-A standalone React research explorer built entirely from the local UniProt Q02388 and ClinVar files. Large interactive protein map, domain/range selection, zoom, density view, HGVS hover details, glycine highlighting, searchable filters, variant details, and CSV export of **all filtered results**.
+A standalone React research explorer built entirely from the local UniProt Q02388 and ClinVar files. Compact protein-density overview, a magnifying variant dock, domain/range selection, zoom, glycine highlighting, searchable filters, variant details, and CSV export of **all filtered results**.
 
 No runtime API, external fonts, analytics, or internet requests. Everything needed is inside this folder. Processing/audit code and installed dependencies were copied from the neighboring local variant explorer; no downloads were made.
 
@@ -23,6 +23,8 @@ The server builds at startup; after edits, rebuild and refresh. On another machi
 
 ## Research workspace
 
+- **Readable variant dock**: move across a classification track to reveal individual records in a seven-card dock. Cards enlarge on hover or keyboard focus. Hold a position, scrub with the slider/arrow keys, switch classifications, page through every record, and open exact evidence/sequence details. Domain selection and zoom remain independent of dock browsing.
+- **Responsive map**: at most 72 residue bins, drawn as five combined SVG paths; a memoized overview stays unchanged during hover. Pointer updates are batched with animation frames and only change focus at bin/lane boundaries. Counts include every mapped record exactly once, with a shared square-root scale across all lanes. Original coordinates are retained on cards.
 - **Light / dark / system theme**: persistent preference with CSP-compatible initialization before paint; includes the protein map, tables, and dialogs.
 - **Review evidence**: minimum ClinVar stars and exact source review-status filters. Missing status stays unknown; stars describe review support, not pathogenicity. The snapshot has 928 two-star records and no three-/four-star records. Definitions: https://www.ncbi.nlm.nih.gov/clinvar/docs/review_status/.
 - **Comparison**: pin up to four records across filters/pages; compare classification, domains, coordinates, review evidence, condition text, evaluation dates, and mapping extent. The shortlist is saved locally and included in shared links. Export the comparison as CSV.
