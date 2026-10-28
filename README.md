@@ -4,7 +4,7 @@ Live: https://col7a1-domain-mutation-map.vercel.app
 
 Repository: https://github.com/theravingrooster/col7a1-domain-mutation-map
 
-A standalone React research explorer built entirely from the local UniProt Q02388 and ClinVar files. Compact protein-density overview, a dense lollipop mutation diagram, domain/range selection, zoom, glycine highlighting, searchable filters, variant details, and CSV export of **all filtered results**.
+A standalone React research explorer built entirely from the local UniProt Q02388 and ClinVar files. Large interactive protein map, domain/range selection, zoom, density view, HGVS hover details, glycine highlighting, searchable filters, variant details, and CSV export of **all filtered results**.
 
 No runtime API, external fonts, analytics, or internet requests. Everything needed is inside this folder. Processing/audit code and installed dependencies were copied from the neighboring local variant explorer; no downloads were made.
 
@@ -23,16 +23,12 @@ The server builds at startup; after edits, rebuild and refresh. On another machi
 
 ## Research workspace
 
-- **Dense lollipop diagram**: every mapped ClinVar VariationID is drawn as its own pin at the reported protein start. Coincident variants overlap in the dense overview; hovering opens a local lens that separates 13 nearby records. The lens has fixed horizontal hit targets while the focused pin and its neighbors grow. Click holds a record and its exact evidence preview below. All records remain reachable with a record slider, arrow buttons, and keyboard navigation, with no pagination or bin sampling in the default view.
-- **Coordinate clarity**: the resting plot uses the protein residue scale, aligned with the UniProt domain tracks. Spacing inside the hover lens is temporarily expanded; source positions are unchanged. Pin height indicates interaction focus, not patient recurrence or evidence support. Intervals beginning outside a zoomed view are anchored at its left edge. A separate density mode uses one count per record and a shared square-root scale.
-- **Performance**: one canvas draws every individual record with batched color paths. The dense background is cached; pointer events coalesce once per frame and React only updates the active record. Theme/resize changes rebuild the cached drawing.
-- **Column filters**: click Variant/HGVS, Position, Region, Clinical significance, or Review status in the table header. Search/check exact values, combine columns, apply ranges or review thresholds, and clear individual columns. Multiple checked values use OR; columns combine with AND. Empty selection is distinct from an unrestricted column. Shared view links, session exports, CSV results, and the map preserve these filters.
 - **Light / dark / system theme**: persistent preference with CSP-compatible initialization before paint; includes the protein map, tables, and dialogs.
 - **Review evidence**: minimum ClinVar stars and exact source review-status filters. Missing status stays unknown; stars describe review support, not pathogenicity. The snapshot has 928 two-star records and no three-/four-star records. Definitions: https://www.ncbi.nlm.nih.gov/clinvar/docs/review_status/.
 - **Comparison**: pin up to four records across filters/pages; compare classification, domains, coordinates, review evidence, condition text, evaluation dates, and mapping extent. The shortlist is saved locally and included in shared links. Export the comparison as CSV.
 - **Reference sequence context**: numbered Q02388 residues with ten flanking amino acids, reported positions highlighted, and FASTA copy/download. Long intervals are abbreviated visually but exported in full. Frameshifts show the reported reference anchor, with no predicted mutant sequence.
 - **Reproducible views**: Copy view link preserves filters, selected interval, map zoom/mode, sort, and comparison. Export session JSON saves those settings plus all result IDs, coordinate conventions, reference versions, source hashes, and export time. Opening a shared link restores it; a plain visit restores the local shortlist.
-- **Figure export**: Export density SVG saves the aggregate density map with the current theme, view coordinates, snapshot date, mapped count, and interpretation notes. Export a session alongside a figure to preserve the complete filter recipe.
+- **Figure export**: Export SVG saves the visible map with the current theme, view coordinates, snapshot date, mapped count, and interpretation notes. Export a session alongside a figure to preserve the complete filter recipe.
 - **Evidence access**: exact `VCV000017423` or `id:17423` searches; links to live ClinVar records and UniProt. Live records may differ from the fixed local snapshot.
 
 All analysis and exports run in the browser. Source biomedical files were not regenerated for these interface additions. Full archive verification requires the original `variant_summary.txt.gz`, which is not committed; the build validates the committed extracted ClinVar rows and UniProt hashes, dataset counts, domains, and provenance.

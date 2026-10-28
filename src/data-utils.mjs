@@ -43,23 +43,12 @@ export function filterVariants(variants, filters, range = null) {
   // residue searches. Plain numeric searches retain the original broad search.
   const exactId = q.match(/^(?:vcv\s*0*|id:\s*)(\d+)(?:\.\d+)?$/i);
   const minimum = filters.minReview === '' || filters.minReview == null ? null : Number(filters.minReview);
-  // A cleared column is null; an explicitly empty selection matches nothing.
-  // Selected values are alternatives within a column, while columns combine
-  // with AND. Match the source values exactly, including compound labels.
-  const columns = [
-    ['types', 'types'], ['regions', 'regions'],
-    ['significances', 'clinicalSignificance'], ['reviewStatuses', 'reviewStatus'],
-  ].filter(([filter]) => filters[filter] != null).map(([filter, field]) => ({
-    field, choices: new Set(Array.isArray(filters[filter]) ? filters[filter] : []),
-  }));
   return variants.filter(v => (!range || overlaps(v, range)) &&
     (filters.mapping === 'all' || (filters.mapping === 'mapped' ? v.position != null : v.position == null)) &&
     (!filters.glycine || v.glycineSubstitution) &&
     (!filters.type || v.types.includes(filters.type)) &&
     (minimum == null || (Number.isInteger(minimum) && minimum >= 0 && minimum <= 4 && getReviewStars(v) != null && getReviewStars(v) >= minimum)) &&
     (!filters.reviewStatus || (filters.reviewStatus === '__missing__' ? !v.reviewStatus?.length : v.reviewStatus?.includes(filters.reviewStatus))) &&
-    columns.every(({ field, choices }) => v[field]?.length
-      ? v[field].some(value => choices.has(value)) : choices.has('__missing__')) &&
     filters.groups.includes(v.significanceGroup) &&
     (!q || (exactId ? Number(exactId[1]) === v.variationId : [v.variationId, ...v.names, ...v.conditions, ...v.clinicalSignificance, ...v.reviewStatus, ...v.regions, v.position ?? ''].join(' ').toLowerCase().includes(q))));
 }

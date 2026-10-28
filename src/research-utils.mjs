@@ -4,18 +4,9 @@ export { getReviewStars, clinvarUrl } from './data-utils.mjs';
 export const DEFAULT_FILTERS = Object.freeze({
   query: '', groups: Object.freeze(GROUPS.map(g => g.id)), mapping: 'all',
   type: '', glycine: false, minReview: '', reviewStatus: '',
-  types: null, regions: null, significances: null, reviewStatuses: null,
 });
 export const MAX_PINNED = 4;
 export const MAX_QUERY_LENGTH = 500;
-const MAX_COLUMN_VALUES = 100;
-const MAX_COLUMN_VALUE_LENGTH = 500;
-const COLUMN_PARAMS = [
-  ['types', 'columnTypes', 'types'],
-  ['regions', 'columnRegions', 'regions'],
-  ['significances', 'columnSignificances', 'clinicalSignificance'],
-  ['reviewStatuses', 'columnStatuses', 'reviewStatus'],
-];
 
 export function positionLabel(v) {
   if (!Number.isInteger(v?.position) || !Number.isInteger(v?.end)) return 'Unmapped';
@@ -57,13 +48,6 @@ export function serializeView(state) {
   if (filters.glycine) params.set('gly', '1');
   if (filters.minReview !== '' && filters.minReview != null) params.set('review', String(filters.minReview));
   if (filters.reviewStatus) params.set('status', filters.reviewStatus);
-  for (const [field, parameter] of COLUMN_PARAMS) {
-    if (filters[field] == null) continue;
-    const values = Array.isArray(filters[field]) ? filters[field] : [];
-    params.set(parameter, JSON.stringify([...new Set(values.filter(value =>
-      typeof value === 'string' && value.length <= MAX_COLUMN_VALUE_LENGTH
-    ))].slice(0, MAX_COLUMN_VALUES)));
-  }
   if (state.selection) {
     params.set('start', String(state.selection.start));
     params.set('end', String(state.selection.end));
@@ -99,19 +83,6 @@ export function parseView(search, data) {
   if (/^[0-4]$/.test(review || '')) filters.minReview = review;
   const status = params.get('status');
   if (status === '__missing__' || data.variants.some(v => v.reviewStatus.includes(status))) filters.reviewStatus = status;
-  for (const [field, parameter, sourceField] of COLUMN_PARAMS) {
-    if (!params.has(parameter)) continue;
-    // An explicitly supplied but unusable selection stays empty rather than
-    // silently broadening a shared research view to include every record.
-    filters[field] = [];
-    let values;
-    try { values = JSON.parse(params.get(parameter)); } catch { continue; }
-    if (!Array.isArray(values) || values.length > MAX_COLUMN_VALUES) continue;
-    const known = new Set(['__missing__', ...data.variants.flatMap(v => v[sourceField] || [])]);
-    filters[field] = [...new Set(values)].filter(value =>
-      typeof value === 'string' && value.length <= MAX_COLUMN_VALUE_LENGTH && known.has(value)
-    );
-  }
   const start = integer(params.get('start')), end = integer(params.get('end'));
   if (validRange(start, end, length) && filters.mapping !== 'unmapped') {
     const domain = data.domains.find(d => d.id === params.get('domain') && d.start === start && d.end === end);
