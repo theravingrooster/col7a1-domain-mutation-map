@@ -1,0 +1,6 @@
+.protein-svg { user-select: none; -webkit-user-select: none; }
+.map-tools .magnification-toggle { gap: 6px; }
+.magnification-toggle[aria-pressed="true"] { color: var(--green); background: var(--surface-soft); border-color: var(--green); }
+.magnification-toggle .magnification-indicator { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .4; }
+.magnification-toggle[aria-pressed="true"] .magnification-indicator { opacity: 1; }
+:root[data-theme="dark"] .magnification-overlay .magnification-glycine { stroke: #c6a0fa; }

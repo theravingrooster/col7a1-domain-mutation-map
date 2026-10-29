@@ -93,5 +93,17 @@ export function buildMapGeometry(markers, view, mode = 'variants') {
     }
     return nearest;
   }
-  return { layers, items, hitTest };
+  // Query a small plotted interval, including spans whose anchors lie outside it.
+  // The magnification overlay uses this index rather than scanning every marker.
+  function rangeItems(lane, left, right) {
+    if (!Number.isInteger(lane) || !buckets[lane] || !Number.isFinite(left) || !Number.isFinite(right) || right < left) return [];
+    const lo = Math.max(MAP_LEFT, left), hi = Math.min(MAP_WIDTH - MAP_RIGHT, right);
+    if (hi < lo) return [];
+    const found = new Set();
+    for (let b = Math.floor(lo / BUCKET); b <= Math.floor(hi / BUCKET); b++) {
+      for (const item of buckets[lane].get(b) || []) if (item.right >= lo && item.left <= hi) found.add(item);
+    }
+    return [...found].sort((a, b) => a.index - b.index);
+  }
+  return { mode, layers, items, hitTest, rangeItems };
 }

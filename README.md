@@ -56,6 +56,8 @@ Markers group variants sharing an anchor and classification. Density counts each
 
 The five-lane map batches marker shapes into vector paths and uses an indexed pointer lookup. Pointer updates run at most once per animation frame, and the map artwork stays unchanged while the tooltip updates. Arrow keys explore markers, up/down change lanes, and Enter selects. Hover cards render outside the map's scroll container and fit within the viewport. Figure exports retain the plotted vector shapes.
 
+**Hover magnification** adds a local wave of larger marker heads and taller stems in the active lane. Reported horizontal positions and all plotted markers remain intact; nearby markers are never spread apart. Turn the control off to return to the standard drawing. Hover height is a visual cue, while SVG exports keep the original count-scaled geometry. The pre-magnification version is preserved on `checkpoint/before-hover-magnification` at commit `0113f35`.
+
 ## Data and regeneration
 
 - `public/data/domain-map.json`: compact frontend JSON (~3.6 MB), with metadata, sequence, domains, variants, positions, and glycine flags. Unmapped coordinates are `null`.

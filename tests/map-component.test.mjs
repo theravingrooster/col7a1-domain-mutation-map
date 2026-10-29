@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { GROUPS, groupMarkers, format } from '../src/data-utils.mjs';
+import { buildMapGeometry } from '../src/map-render.mjs';
+import { computeFocus } from '../src/hover-magnification.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const scratch = await mkdtemp(path.join(tmpdir(), 'col7a1-map-render-'));
@@ -17,7 +19,9 @@ await build({
     contents: `import React from 'react';
       import { renderToStaticMarkup } from 'react-dom/server';
       import ProteinMap from './src/ProteinMap.jsx';
-      export const render = props => renderToStaticMarkup(React.createElement(ProteinMap, props));`,
+      import HoverMagnification from './src/HoverMagnification.jsx';
+      export const render = props => renderToStaticMarkup(React.createElement(ProteinMap, props));
+      export const renderFocus = focus => renderToStaticMarkup(React.createElement(HoverMagnification, {focus, maskRef:{current:null}}));`,
     resolveDir: root,
     sourcefile: 'map-ssr-check.jsx',
     loader: 'jsx',
@@ -30,7 +34,7 @@ await build({
   define: { 'process.env.NODE_ENV': '"production"' },
   logLevel: 'silent',
 });
-const { render } = createRequire(import.meta.url)(output);
+const { render, renderFocus } = createRequire(import.meta.url)(output);
 const data = JSON.parse(await readFile(new URL('../public/data/domain-map.json', import.meta.url), 'utf8'));
 const noop = () => {};
 const base = {
@@ -76,4 +80,17 @@ test('empty and one-residue maps stay valid and report their actual mapped count
     assert.doesNotMatch(svgFrom(singleton), /(?:NaN|Infinity)/);
     assert.match(singleton, /Full protein/);
   }
+});
+
+test('active magnification retains crowded local markers in a bounded vector overlay', () => {
+  const geometry = buildMapGeometry(groupMarkers(data.variants, base.view, 'variants').markers, base.view, 'variants');
+  const active = geometry.items.find(item => item.lane === 2 && item.marker.start >= 1480);
+  const focus = computeFocus(geometry, active);
+  assert.ok(focus.items.length > 100, 'Exercise a crowded lane rather than a trivial focus window');
+  const svg = svgFrom(renderFocus(focus));
+  assert.ok((svg.match(/<[A-Za-z][^>]*>/g)?.length ?? 0) < 20,
+    'Moving the magnification lens must not create a DOM element per marker');
+  assert.equal((focus.paths.heads.match(/M/g) || []).length, focus.items.length);
+  assert.ok(focus.items.every(item => item.cx === item.source.cx));
+  assert.doesNotMatch(svg, /(?:NaN|Infinity)/);
 });

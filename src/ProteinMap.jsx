@@ -1,7 +1,9 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { GROUPS, format, groupMarkers } from './data-utils.mjs';
 import { buildMapGeometry } from './map-render.mjs';
 import MapTooltip from './MapTooltip.jsx';
+import HoverMagnification from './HoverMagnification.jsx';
+import { computeFocus, hitFocus } from './hover-magnification.mjs';
 
 const W = 1250, LEFT = 150, RIGHT = 25, TRACK = W - LEFT - RIGHT;
 const familyColor = d => d.label.includes('VWFA') ? '#7a9cba' : d.label.includes('Fibronectin') ? '#9bb6a8' : d.label.includes('Kunitz') ? '#b0a0c9' : '#d5dbdc';
@@ -25,7 +27,7 @@ function markerTip(item, mode) {
 
 // The SVG artwork is stable during pointer movement. Thousands of source
 // markers share a few vector paths; only the small highlight and tooltip update.
-const MapStage = memo(function MapStage({ data, geometry, ticks, view, selection, mode, svgRef, interactionRef, onHover, onHide, onChooseMarker, onChooseDomain }) {
+const MapStage = memo(function MapStage({ data, geometry, ticks, view, selection, mode, svgRef, maskRef, interactionRef, magnify, onFocusChange, onHover, onHide, onChooseMarker, onChooseDomain }) {
   const interaction = interactionRef.current;
   const length = view.end - view.start + 1;
   const x = p => LEFT + (p - view.start) / length * TRACK;
@@ -33,26 +35,37 @@ const MapStage = memo(function MapStage({ data, geometry, ticks, view, selection
   const visibleDomains = data.domains.filter(d => d.end >= view.start && d.start <= view.end);
   const cancelFrame = () => { if (interaction.frame) cancelAnimationFrame(interaction.frame); interaction.frame = 0; interaction.pending = null; };
   const hide = () => { cancelFrame(); interaction.shown = null; onHide(); };
-  useEffect(() => {
+  useLayoutEffect(() => {
     cancelFrame();
     interaction.active = -1;
     interaction.shown = null;
+    interaction.focus = null;
     return cancelFrame;
-  }, [geometry]);
+  }, [geometry, magnify]);
   const showMarker = (item, pointerX, keyboard = false) => {
-    if (!item) { if (interaction.shown != null) { interaction.shown = null; onHide(); } return; }
+    if (!item) { if (interaction.shown != null || interaction.focus) hide(); return; }
     interaction.active = item.index;
     const key = `marker:${item.marker.key}`;
+    const centerX = Math.round((pointerX ?? item.cx) * 2) / 2;
+    const previousFocus = interaction.focus;
+    if (magnify && mode === 'variants' && (!previousFocus || previousFocus.centerX !== centerX || previousFocus.active?.source !== item)) {
+      interaction.focus = computeFocus(geometry, item, centerX);
+      onFocusChange(interaction.focus);
+    }
     if (interaction.shown === key && !keyboard) return;
     interaction.shown = key;
     const bounds = svgRef.current.getBoundingClientRect(), scale = bounds.width / W;
     const anchorX = pointerX == null ? item.cx : Math.min(Math.max(pointerX, item.cx), mode === 'density' ? item.cx + item.barWidth : item.xEnd);
-    onHover({ ...markerTip(item, mode), item, keyboard, anchor: { left: bounds.left + (anchorX - 5) * scale, right: bounds.left + (anchorX + 5) * scale, top: bounds.top + (item.cy - 5) * scale, bottom: bounds.top + (item.cy + 5) * scale } });
+    const shownItem = interaction.focus?.active || item;
+    const radius = shownItem.radius || 5;
+    onHover({ ...markerTip(item, mode), item, keyboard, anchor: { left: bounds.left + (anchorX - radius) * scale, right: bounds.left + (anchorX + radius) * scale, top: bounds.top + (shownItem.cy - radius) * scale, bottom: bounds.top + (shownItem.cy + radius) * scale } });
   };
   const pointerItem = event => {
     const bounds = svgRef.current.getBoundingClientRect(), scale = bounds.width / W;
     const px = (event.clientX - bounds.left) / scale, py = (event.clientY - bounds.top) / scale;
-    return { item: geometry.hitTest(px, py, Math.max(5, 5 / scale)), px };
+    const tolerance = Math.max(5, 5 / scale);
+    const item = magnify && mode === 'variants' && interaction.focus ? hitFocus(interaction.focus, px, py, tolerance) || geometry.hitTest(px, py, tolerance) : geometry.hitTest(px, py, tolerance);
+    return { item, px };
   };
   const queuePointer = event => {
     interaction.pending = { clientX: event.clientX, clientY: event.clientY };
@@ -94,15 +107,17 @@ const MapStage = memo(function MapStage({ data, geometry, ticks, view, selection
   };
   const showDomain = (e, d, subdomain, keyboard = false) => {
     cancelFrame();
+    interaction.focus = null;
+    onFocusChange(null);
     interaction.shown = `domain:${d.id}`;
     onHover({ id: interaction.shown, title: d.label, detail: subdomain ? 'UniProt subdomain' : d.description, foot: `${d.start}–${d.end} aa${subdomain ? '' : ' · UniProt annotation'}`, action: keyboard ? 'Enter to select' : `Click to filter this ${subdomain ? 'domain' : 'region'}`, anchor: rectBounds(e.currentTarget) });
   };
   return <svg ref={svgRef} className="protein-svg" viewBox={`0 0 ${W} 418`} aria-label="Interactive COL7A1 protein map. Select a domain or variant marker to filter the table." onPointerLeave={hide} onKeyDown={e => { if (e.key === 'Escape') hide(); }}>
-    <defs><clipPath id="plot-clip"><rect x={LEFT} y="10" width={TRACK} height="380" /></clipPath><pattern id="collagen-pattern" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 10 L10 -2 M8 12 L12 8" stroke="#a9c7cd" strokeWidth="1" opacity=".6" /></pattern></defs>
+    <defs><mask id="hover-marker-mask" maskUnits="userSpaceOnUse" x="0" y="0" width={W} height="418"><rect x="0" y="0" width={W} height="418" fill="white" /><rect ref={maskRef} data-focus-mask="true" x="0" y="0" width="0" height="0" fill="black" /></mask><clipPath id="plot-clip"><rect x={LEFT} y="10" width={TRACK} height="380" /></clipPath><pattern id="collagen-pattern" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 10 L10 -2 M8 12 L12 8" stroke="#a9c7cd" strokeWidth="1" opacity=".6" /></pattern></defs>
     {ticks.map(t => <g key={t}><line x1={x(t)} x2={x(t)} y1="18" y2="375" stroke="#e6eae8" strokeDasharray="3 5" /><text x={x(t)} y="401" textAnchor={t === view.start ? 'start' : t === view.end ? 'end' : 'middle'} className="axis-text">{format(t)}</text></g>)}
     {selection && <g clipPath="url(#plot-clip)" pointerEvents="none"><rect x={x(selection.start)} y="15" width={Math.max(width(selection.start, selection.end), 2)} height="360" fill="#0b6958" opacity=".07" /><line x1={x(selection.start)} x2={x(selection.start)} y1="15" y2="375" stroke="#398774" strokeDasharray="3 3" /><line x1={x(selection.end + 1)} x2={x(selection.end + 1)} y1="15" y2="375" stroke="#398774" strokeDasharray="3 3" /></g>}
     {GROUPS.map((g, i) => <g key={g.id}><circle cx="18" cy={42 + i * 48} r="3.5" fill={g.color} /><text x="30" y={46 + i * 48} className="track-label">{g.short}</text><line x1={LEFT} x2={W - RIGHT} y1={64 + i * 48} y2={64 + i * 48} stroke="#e3e8e5" /></g>)}
-    <g clipPath="url(#plot-clip)" pointerEvents="none" aria-hidden="true">{geometry.layers.map(layer => <g key={layer.group.id}>
+    <g data-marker-artwork="true" mask="url(#hover-marker-mask)" clipPath="url(#plot-clip)" pointerEvents="none" aria-hidden="true">{geometry.layers.map(layer => <g key={layer.group.id}>
       {mode === 'density' ? <path d={layer.density} fill={layer.group.color} opacity=".8" /> : <><path d={layer.stems} fill="none" stroke={layer.group.color} strokeWidth="1" opacity=".43" /><path d={layer.spans} fill="none" stroke={layer.group.color} strokeWidth="3" /><path d={layer.heads} fill={layer.group.color} /></>}
       <path d={layer.glycine} fill="none" stroke="#7953b0" strokeWidth="1.5" />
     </g>)}</g>
@@ -125,8 +140,9 @@ const MapStage = memo(function MapStage({ data, geometry, ticks, view, selection
 
 function ProteinMap({ data, variants, selection, setSelection, view, setView, onInspect, mode, setMode }) {
   const [hover, setHover] = useState(null);
-  const svgRef = useRef(null);
-  const interactionRef = useRef({ frame: 0, pending: null, active: -1, shown: null });
+  const [magnify, setMagnify] = useState(true), [focus, setFocus] = useState(null);
+  const svgRef = useRef(null), maskRef = useRef(null);
+  const interactionRef = useRef({ frame: 0, pending: null, active: -1, shown: null, focus: null });
   const { markers, binSize } = useMemo(() => groupMarkers(variants, view, mode), [variants, view, mode]);
   const geometry = useMemo(() => buildMapGeometry(markers, view, mode), [markers, view, mode]);
   const count = useMemo(() => markers.reduce((n, m) => n + m.variants.length, 0), [markers]);
@@ -145,10 +161,12 @@ function ProteinMap({ data, variants, selection, setSelection, view, setView, on
     interaction.frame = 0;
     interaction.pending = null;
     interaction.shown = null;
+    interaction.focus = null;
+    setFocus(null);
     setHover(null);
   }, []);
   const showTip = useCallback(next => setHover(previous => previous?.id === next.id && previous?.keyboard === next.keyboard ? previous : next), []);
-  useEffect(hideTip, [geometry, selection, hideTip]);
+  useLayoutEffect(hideTip, [geometry, selection, magnify, hideTip]);
   const chooseDomain = useCallback(d => setSelection({ start: d.start, end: d.end, label: d.label, id: d.id }), [setSelection]);
   const chooseMarker = useCallback(m => {
     setSelection({ start: m.start, end: m.end, label: m.start === m.end ? `Residue ${format(m.start)}` : `Residues ${format(m.start)}–${format(m.end)}` });
@@ -161,6 +179,9 @@ function ProteinMap({ data, variants, selection, setSelection, view, setView, on
     const clone = source.cloneNode(true), originals = [source, ...source.querySelectorAll('*')], copies = [clone, ...clone.querySelectorAll('*')];
     originals.forEach((node, i) => { const style = getComputedStyle(node); for (const prop of ['fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'opacity', 'font-family', 'font-size', 'font-weight', 'text-anchor']) copies[i].style.setProperty(prop, style.getPropertyValue(prop)); copies[i].removeAttribute('tabindex'); copies[i].removeAttribute('role'); });
     clone.querySelector('[data-map-interaction]')?.remove();
+    // Export the original count-scaled figure, never the transient hover mask.
+    clone.querySelector('[data-marker-artwork]')?.removeAttribute('mask');
+    clone.querySelector('#hover-marker-mask')?.remove();
     const ns = 'http://www.w3.org/2000/svg', outer = document.createElementNS(ns, 'svg'); outer.setAttribute('xmlns', ns); outer.setAttribute('viewBox', `0 0 ${W} 500`); outer.setAttribute('width', String(W)); outer.setAttribute('height', '500');
     const bg = document.createElementNS(ns, 'rect'); bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#fff'); outer.append(bg);
     const label = (text, y, size) => { const el = document.createElementNS(ns, 'text'); el.setAttribute('x', '18'); el.setAttribute('y', String(y)); el.setAttribute('fill', getComputedStyle(document.documentElement).getPropertyValue('--ink').trim()); el.setAttribute('font-family', 'Arial, sans-serif'); el.setAttribute('font-size', String(size)); el.textContent = text; outer.append(el); };
@@ -175,18 +196,19 @@ function ProteinMap({ data, variants, selection, setSelection, view, setView, on
       <div className="map-tools"><div className="segmented" aria-label="Map display">
         <button aria-pressed={mode === 'variants'} onClick={() => { setMode('variants'); hideTip(); }}>Variants</button>
         <button aria-pressed={mode === 'density'} onClick={() => { setMode('density'); hideTip(); }}>Density</button>
-      </div><button className="button small" onClick={exportSVG}>Export SVG ↓</button><button className="button small" disabled={!selection} onClick={() => { setView({ start: selection.start, end: selection.end }); hideTip(); }}>Zoom to selection <span>↗</span></button>
+      </div><button className="button small magnification-toggle" aria-pressed={magnify} disabled={mode !== 'variants'} onClick={() => { hideTip(); setMagnify(value => !value); }} title="Enlarge nearby pins in place; switch off to restore the original appearance"><span className="magnification-indicator" aria-hidden="true" />Hover magnification</button><button className="button small" onClick={exportSVG}>Export SVG ↓</button><button className="button small" disabled={!selection} onClick={() => { setView({ start: selection.start, end: selection.end }); hideTip(); }}>Zoom to selection <span>↗</span></button>
         {!full && <button className="text-button" onClick={() => { setView({ start: 1, end: data.protein.length }); hideTip(); }}>Full protein ↺</button>}</div>
     </div>
     <div className="map-context"><span><strong>{format(count)}</strong> mapped variants in view <span className="muted">· selection highlighted below</span></span><span className="mono">{format(view.start)}—{format(view.end)} aa</span></div>
     <div className="map-scroll"><div className="svg-wrap">
-      <MapStage data={data} geometry={geometry} ticks={ticks} view={view} selection={selection} mode={mode} svgRef={svgRef} interactionRef={interactionRef} onHover={showTip} onHide={hideTip} onChooseMarker={chooseMarker} onChooseDomain={chooseDomain} />
-      {hover?.item && <svg className="map-hover-overlay" viewBox={`0 0 ${W} 418`} aria-hidden="true"><g clipPath="url(#plot-clip)">{mode === 'density' ? <rect x={hover.item.cx} y={hover.item.cy} width={hover.item.barWidth} height={hover.item.height} rx="1.5" fill="none" stroke="var(--ink)" strokeWidth="1.3" /> : <circle cx={hover.item.cx} cy={hover.item.cy} r="5" fill="none" stroke="var(--ink)" strokeWidth="1.2" />}</g></svg>}
+      <MapStage data={data} geometry={geometry} ticks={ticks} view={view} selection={selection} mode={mode} svgRef={svgRef} maskRef={maskRef} interactionRef={interactionRef} magnify={magnify} onFocusChange={setFocus} onHover={showTip} onHide={hideTip} onChooseMarker={chooseMarker} onChooseDomain={chooseDomain} />
+      <HoverMagnification focus={focus} maskRef={maskRef} />
+      {hover?.item && !focus && <svg className="map-hover-overlay" viewBox={`0 0 ${W} 418`} aria-hidden="true"><g clipPath="url(#plot-clip)">{mode === 'density' ? <rect x={hover.item.cx} y={hover.item.cy} width={hover.item.barWidth} height={hover.item.height} rx="1.5" fill="none" stroke="var(--ink)" strokeWidth="1.3" /> : <circle cx={hover.item.cx} cy={hover.item.cy} r="5" fill="none" stroke="var(--ink)" strokeWidth="1.2" />}</g></svg>}
     </div></div>
     <span id="map-keyboard-help" className="sr-only">Arrow keys explore markers; up and down change significance lane. Home and End jump to the first and last marker. Enter selects; Escape closes the preview.</span>
     <span role="status" className="sr-only">{hover?.keyboard ? `${hover.title}. ${hover.detail}. ${hover.foot}` : ''}</span>
     <MapTooltip hover={hover} onDismiss={hideTip} />
-    <div className="map-footer"><span><span className="diamond">◇</span> Collagenous glycine substitution <span className="divider">/</span> <span className="swatch vwa" /> vWA <span className="swatch fn" /> Fibronectin III <span className="swatch kunitz" /> Kunitz</span><span>{mode === 'density' ? `${binSize}-residue bins · height = √count` : 'Markers at reported residues · height = √count'} <span className="divider">/</span> Click a region to explore</span></div>
+    <div className="map-footer"><span><span className="diamond">◇</span> Collagenous glycine substitution <span className="divider">/</span> <span className="swatch vwa" /> vWA <span className="swatch fn" /> Fibronectin III <span className="swatch kunitz" /> Kunitz</span><span>{mode === 'density' ? `${binSize}-residue bins · height = √count` : magnify ? 'Fixed positions · resting height = √count · hover size is visual only' : 'Markers at reported residues · height = √count'} <span className="divider">/</span> Click a region to explore</span></div>
   </section>;
 }
 export default memo(ProteinMap);
